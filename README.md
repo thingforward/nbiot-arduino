@@ -1,5 +1,5 @@
 # nbiot-arduino
-Arduino Library for access NBIoT modules
+Arduino Library for accessing NBIoT modules
 
 # License
 
