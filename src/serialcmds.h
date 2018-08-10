@@ -10,7 +10,7 @@
 class ArduinoSerialCommandAdapter : public CommandAdapter {
     friend class NarrowbandCore;
 public:
-    ArduinoSerialCommandAdapter(Uart& modem_serial_,long timeout_ = SERIALCMDS_DEFAULT_TIMEOUT_MSEC ) : 
+    ArduinoSerialCommandAdapter(HardwareSerial& modem_serial_,long timeout_ = SERIALCMDS_DEFAULT_TIMEOUT_MSEC ) : 
         modem_serial(modem_serial_) { setTimeout(timeout_); }
 
     void send_cmd(const char *cmd);
@@ -22,7 +22,7 @@ public:
     size_t send_cmd_recv_reply_stop(const char *cmd, char *replybuffer, size_t sz_replybuffer, const char *stopWord);
 
 private:
-    Uart&   modem_serial;
+    HardwareSerial&   modem_serial;
 };
 
 

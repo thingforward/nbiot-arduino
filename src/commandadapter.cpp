@@ -12,7 +12,7 @@ void CommandAdapter::dbg_out(char prefix, const char *p, char flag) {
     char const *x = p;
     while(i < n) {
         char buf[4];
-        sprintf(buf, "%0.2X", *x);
+        sprintf(buf, "%.2X", *x);
         Serial.print(buf); Serial.print(" ");
 
         if (*x < 32) {
@@ -35,12 +35,12 @@ void CommandAdapter::dbg_out0(const char *p, bool nl) {
     }
 }
 
-void CommandAdapter::setTimeout(long timeout) {
+void CommandAdapter::setTimeout(unsigned long timeout) {
     if (timeout > 0) {
         this->timeout = timeout;
     }
 }
 
-long CommandAdapter::getTmeout() const {
+unsigned long CommandAdapter::getTmeout() const {
     return timeout;
 }

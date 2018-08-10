@@ -1,5 +1,8 @@
+#include <Arduino.h>
+
 #include "narrowbandcore.h"
 #include "serialcmds.h"
+
 
 bool PDPContext::operator==(const PDPContext& other) const {
     return (
@@ -21,6 +24,13 @@ bool NarrowbandCore::ready() {
     return ca.send_cmd_waitfor_reply("AT", "OK\r\n");
 }
 
+void NarrowbandCore::reboot() {
+    long t = ca.getTmeout();
+    ca.setTimeout(20*1000);
+    ca.send_cmd_waitfor_reply("AT+NRB", "OK\r\n");
+    ca.setTimeout(t);
+}
+
 void NarrowbandCore::setEcho(bool b_echo) {
     char buf[16];
     sprintf(buf,"ATE=%d", b_echo);
@@ -38,7 +48,7 @@ int NarrowbandCore::_split_response_array(char *buf, size_t n, char *arr_res[], 
     char *p2 = buf;
     int i = 0;
     int j = 0;
-    while( i < n && j < n_max_arr) {
+    while( (size_t)i < n && j < n_max_arr) {
         if (*p2 == '\r' || *p2 == '\n') {
             *p2 = 0;
 
@@ -75,33 +85,50 @@ int NarrowbandCore::_split_response_array(char *buf, size_t n, char *arr_res[], 
 // after that, *buf == command without ':', rest of pointers assigned
 // destroys buf
 int NarrowbandCore::_split_csv_line(char *buf, size_t n, char *arr_res[], int n_max_arr, const char *p_expect_cmdstring) {
-    char *sep = strchr(buf,':');
-    int i = 0, j = 0;
-    char *p = 0;
-    if (buf[0] == '+' && sep != 0) {
-        *sep = '\0';
-        j = (sep-buf);
-        p = ++sep;
-
-        if ( p_expect_cmdstring != NULL) {
-            if ( strcmp(buf, p_expect_cmdstring) != 0) {
-                return -2;      // unexpected command
-            }
-        }
-
-        while (sep != 0 && i < n_max_arr && j < n) {
-          arr_res[i++] = p;
-          sep = strchr(p,',');
-          if ( sep != 0) {
+    if ( p_expect_cmdstring != NULL) {
+        char *sep = strchr(buf,':');
+        int i = 0, j = 0;
+        char *p = 0;
+        if (buf[0] == '+' && sep != 0) {
             *sep = '\0';
             j = (sep-buf);
             p = ++sep;
-          }
+
+            if ( strcmp(buf, p_expect_cmdstring) != 0) {
+                return -2;      // unexpected command
+            }
+
+            while (sep != 0 && i < n_max_arr && (size_t)j < n) {
+                arr_res[i++] = p;
+                sep = strchr(p,',');
+                if ( sep != 0) {
+                    *sep = '\0';
+                    j = (sep-buf);
+                    p = ++sep;
+                }
+            }
+
+            return i;
+        } else {
+            return -1;      // format invalid
+        }
+    } else {
+        char *sep = buf;
+        char *p = buf;
+        int i = 0, j = 0;
+        j = (sep-buf);
+
+        while (sep != 0 && i < n_max_arr && (size_t)j < n) {
+            arr_res[i++] = p;
+            sep = strchr(p,',');
+            if ( sep != 0) {
+                *sep = '\0';
+                j = (sep-buf);
+                p = ++sep;
+            }
         }
 
         return i;
-    } else {
-        return -1;      // format invalid
     }
 
     return 0;
@@ -152,6 +179,20 @@ String NarrowbandCore::getIMEI() {
     return String();
 }
 
+String NarrowbandCore::getIMSI() {
+    const char *cmd = "AT+CIMI";
+    char buf[128];
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r");
+
+    char *p[4];
+    int elems = _split_response_array(buf, n, p, 4);
+    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
+    if (ok) {
+        return String(p[0]);
+    }
+    return String();
+}
+
 bool NarrowbandCore::getOperatorSelection(int& mode, int& format, String& operatorName) {
     mode = -1; format = -1; operatorName = "";
 
@@ -181,58 +222,11 @@ bool NarrowbandCore::getOperatorSelection(int& mode, int& format, String& operat
         }
     }
     return false;
-
-/*
-    char *p[4];
-    int elems = _split_response_array(buf, n, p, 4);
-    bool ok = (lastStatusOk && !lastStatusError && elems >= 2);
-    if (ok && String(p[0]).equals(cmd)) {
-        String cops = String(p[1]);
-        String cops_mode, cops_format, cops_opsnname;
-        if (cops.startsWith("+COPS:")) {
-            cops = cops.substring(7);
-            int x = cops.indexOf(',');
-            if ( x > 0) {
-                cops_mode = cops.substring(0,x);
-                mode = cops_mode.toInt();
-                cops = cops.substring(x+1,cops.length());
-
-                // format
-                x = cops.indexOf(',');
-                if ( x > 0) {
-                    cops_format = cops.substring(0,x);
-                    format = cops_format.toInt();
-
-                    cops = cops.substring(x+1,cops.length());
-
-                    // operator Name
-                    x = cops.indexOf(',');
-                    if ( x > 0) {
-                        cops_opsnname = cops.substring(0,x);
-                        cops = cops.substring(x+1,cops.length());
-                    } else {
-                        cops_opsnname = cops;
-                    }
-                    operatorName = cops_opsnname;
-                } else {
-                    cops_format = cops;
-                    format = cops_format.toInt();
-                }
-            } else {
-                cops_mode = cops;
-                mode = cops_mode.toInt();
-            }
-
-        }
-        return true;
-    }
-    return false;
-    */
 }
 
-bool NarrowbandCore::setOperatorSelection(const OperatorSelectMode mode) {
+bool NarrowbandCore::setOperatorSelection(const OperatorSelectMode mode, String operatorName) {
     char cmd[64];
-    sprintf(cmd, "AT+COPS=%d", mode);
+    sprintf(cmd, "AT+COPS=%d,2,%s", mode, operatorName.c_str());
     char buf[256];
     size_t n = ca.send_cmd_recv_reply(cmd, buf, sizeof(buf));
 
@@ -247,7 +241,7 @@ bool NarrowbandCore::getModuleFunctionality(bool& fullFunctionality) {
     char buf[256];
 
     long t = ca.getTmeout();
-    ca.setTimeout(2000);
+    ca.setTimeout(5000);
 
     size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r");
 
@@ -255,7 +249,7 @@ bool NarrowbandCore::getModuleFunctionality(bool& fullFunctionality) {
 
     char *p[2];
     int elems = _split_response_array(buf, n, p, 4);
-    bool ok = (lastStatusOk && !lastStatusError && elems >= 2);
+    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
     if (ok && String(p[0]).equals(cmd)) {
         String res = String(p[1]);
         if (res.startsWith("+CFUN:")) {
@@ -273,7 +267,7 @@ bool NarrowbandCore::setModuleFunctionality(const bool fullFunctionality) {
     char buf[256];
 
     long t = ca.getTmeout();
-    ca.setTimeout(2000);
+    ca.setTimeout(5000);
 
     size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r");
 
@@ -294,35 +288,36 @@ bool NarrowbandCore::getNetworkRegistration(int& mode, int& status) {
 
     char *p[4];
     int elems = _split_response_array(buf, n, p, 4);
-    bool ok = (lastStatusOk && !lastStatusError && elems >= 2);
-    if (ok && String(p[0]).equals(cmd)) {
-        String line = String(p[1]), part;
-        int x;
-        if (line.startsWith("+CEREG:")) {
-            x = line.indexOf(':');
-            line = line.substring(x+1,line.length());
-            x = line.indexOf(',');
-            if ( x > 0) {
-                part = line.substring(0,x);
-                mode = part.toInt();
+    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
+    if (ok) {
+        for ( int i = 0; i < elems; i++) {
+            String line = String(p[i]), part;
+            int x;
+            if (line.startsWith("+CEREG:")) {
+                x = line.indexOf(':');
                 line = line.substring(x+1,line.length());
-
                 x = line.indexOf(',');
                 if ( x > 0) {
                     part = line.substring(0,x);
-                    status = part.toInt();
-                    //line = line.substring(x+1,line.length());
+                    mode = part.toInt();
+                    line = line.substring(x+1,line.length());
+
+                    x = line.indexOf(',');
+                    if ( x > 0) {
+                        part = line.substring(0,x);
+                        status = part.toInt();
+                        //line = line.substring(x+1,line.length());
+
+                    } else {
+                        status = line.toInt();
+                    }
 
                 } else {
-                    status = line.toInt();
+                    mode = line.toInt();
                 }
-
-            } else {
-                mode = line.toInt();
+               return true;
             }
-
         }
-        return true;
     }
     return false;
 }
@@ -341,7 +336,7 @@ bool NarrowbandCore::setNetworkRegistration(const int status) {
 
     char *p[4];
     int elems = _split_response_array(buf, n, p, 4);
-    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
+    bool ok = (lastStatusOk && !lastStatusError);
     return ok;
 }
 
@@ -354,24 +349,25 @@ bool NarrowbandCore::getConnectionStatus(int& urcEnabled, bool& connected) {
 
     char *p[4];
     int elems = _split_response_array(buf, n, p, 4);
-    bool ok = (lastStatusOk && !lastStatusError && elems >= 2);
-    if (ok && String(p[0]).equals(cmd)) {
-        String line = String(p[1]), part;
-        int x;
-        if (line.startsWith("+CSCON:")) {
-            line = line.substring(7);
-            x = line.indexOf(',');
-            if ( x > 0) {
-                part = line.substring(0,x);
-                urcEnabled = part.toInt();
-                line = line.substring(x+1,line.length());
-                connected = (bool)line.toInt();
-            } else {
-                urcEnabled = line.toInt();
+    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
+    if (ok) {
+        for ( int i = 0; i < elems; i++) {
+            String line = String(p[i]), part;
+            int x;
+            if (line.startsWith("+CSCON:")) {
+                line = line.substring(7);
+                x = line.indexOf(',');
+                if ( x > 0) {
+                    part = line.substring(0,x);
+                    urcEnabled = part.toInt();
+                    line = line.substring(x+1,line.length());
+                    connected = (bool)line.toInt();
+                } else {
+                    urcEnabled = line.toInt();
+                }   
+                return true;
             }
-
         }
-        return true;
     }
     return false;
 }
@@ -390,7 +386,7 @@ bool NarrowbandCore::setConnectionStatus(const bool connected) {
 
     char *p[4];
     int elems = _split_response_array(buf, n, p, 4);
-    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
+    bool ok = (lastStatusOk && !lastStatusError);
     return ok;
 }
 
@@ -404,14 +400,15 @@ bool NarrowbandCore::getAttachStatus(bool& attached) {
     char *p[4];
     int elems = _split_response_array(buf, n, p, 4);
     bool ok = (lastStatusOk && !lastStatusError && elems >= 2);
-    if (ok && String(p[0]).equals(cmd)) {
-        String line = String(p[1]), part;
-        int x;
-        if (line.startsWith("+CGATT:")) {
-            line = line.substring(7);
-            attached = (bool)line.toInt();
+    if (ok) {
+        for ( int i = 0; i < elems; i++) {
+            String line = String(p[i]), part;
+            if (line.startsWith("+CGATT:")) {
+                line = line.substring(7);
+                attached = (bool)line.toInt();
+                return true;
+            }
         }
-        return true;
     }
     return false;
 }
@@ -430,7 +427,7 @@ bool NarrowbandCore::setAttachStatus(const bool attached) {
 
     char *p[4];
     int elems = _split_response_array(buf, n, p, 4);
-    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
+    bool ok = (lastStatusOk && !lastStatusError);
     return ok;
 }
 
@@ -515,6 +512,183 @@ bool NarrowbandCore::addPDPContexts(PDPContext& ctx) {
     sprintf(cmdbuf, "AT+CGDCONT=%d,\"%s\",\"%s\"", ctx.cid, ctx.type, ctx.APN);
 
     char buf[128];
-    size_t n = ca.send_cmd_recv_reply_stop(cmdbuf, buf, sizeof(buf), "OK\r");
+    ca.send_cmd_recv_reply_stop(cmdbuf, buf, sizeof(buf), "OK\r");
     return (lastStatusOk && !lastStatusError);
 }
+
+bool NarrowbandCore::setCDPServer(const String host, const int port) {
+    char cmd[64];
+    sprintf(cmd, "AT+NCDP=%s,%d", host.c_str(), port);
+    char buf[256];
+    size_t n = ca.send_cmd_recv_reply(cmd, buf, sizeof(buf));
+
+    char *p[4];
+    int elems = _split_response_array(buf, n, p, 4);
+    bool ok = (lastStatusOk && !lastStatusError);
+    return ok;
+
+}
+
+int NarrowbandCore::createSocket( SocketType s, int protocol, int listenPort, bool bWithReceiveControl) {
+    char tbuf[16];
+    memset(tbuf,0,sizeof(tbuf));
+    if ( s == SocketType::Datagram) {
+        strcpy(tbuf, "DGRAM");
+    }
+    if ( s == SocketType::Raw) {
+        strcpy(tbuf, "RAW");
+    }
+
+    char rc[8];
+    memset(rc,0,sizeof(rc));
+    if(bWithReceiveControl) {
+        strcpy(rc,",1");
+    }
+
+    char cmdbuf[128];
+    sprintf(cmdbuf, "AT+NSOCR=%s,%d,%d%s", tbuf,protocol,listenPort,rc);
+    char buf[256];
+    size_t n = ca.send_cmd_recv_reply(cmdbuf, buf, sizeof(buf));
+
+    char *p[4];
+    int elems = _split_response_array(buf, n, p, 4);
+    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
+    if ( ok) {
+        for ( int i = 0; i < elems; i++) {
+            char *line = p[i];
+            if (line && *line >= '0' && *line <= '9') {
+                return atoi(line);
+            }
+        }
+        return -2;          // no socket id recognized
+    } else {
+        return -1;          // did not return with OK
+    }
+}
+
+bool NarrowbandCore::closeSocket( int socket) {
+    char cmdbuf[128];
+    sprintf(cmdbuf, "AT+NSOCL=%d", socket);
+
+    char buf[128];
+    ca.send_cmd_recv_reply_stop(cmdbuf, buf, sizeof(buf), "OK\r");
+    return (lastStatusOk && !lastStatusError);
+
+}
+
+bool NarrowbandCore::sendTo(int socket, const char *remoteAddr, int remotePort, size_t length, const uint8_t *p_data) {
+    size_t n = 1+length*2;
+    char *hexbuf = (char*)malloc(n); 
+    memset(hexbuf,0,n);
+
+    char *q = hexbuf;
+    for ( size_t i = 0; i < length; i++) {
+        sprintf(q, "%.2X", p_data[i]);
+        q += 2;
+    }
+
+    char cmdbuf[128];
+    sprintf(cmdbuf, "AT+NSOST=%d,%s,%d,%d,%s", socket, remoteAddr, remotePort, length, hexbuf);
+    char buf[256];
+    size_t n2 = ca.send_cmd_recv_reply_stop(cmdbuf, buf, sizeof(buf), "OK\r");
+
+    free(hexbuf);
+
+    char *p[4];
+    int elems = _split_response_array(buf, n2, p, 4);
+    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
+/*    return ok;
+    if ( ok) {
+        for ( int i = 0; i < elems; i++) {
+            char *line = p[i];
+            if (line && *line >= '0' && *line <= '9') {
+                return atoi(line);
+            }
+        }
+        return -2;          // no socket id recognized
+    } else {
+        return -1;          // did not return with OK
+    }
+*/
+}
+
+uint8_t charToNum(char c) {
+  if ( c >= '0' && c <= '9') {
+   return (uint8_t)(c-'0'); 
+  }
+  if ( c >= 'a' && c <= 'f') {
+   return 10+(uint8_t)(c-'a'); 
+  }
+  if ( c >= 'A' && c <= 'F') {
+   return 10+(uint8_t)(c-'A'); 
+  }
+}
+
+void hexstringToByteArr(const char *p, int n, uint8_t *res, int len) {
+  uint8_t *r = res;
+  int i = 0;
+  while ( p && *p && i < n && i < len*2) {
+    uint8_t v = charToNum(p[i])*16 + charToNum(p[i+1]);
+    
+    *(r++) = v;
+    i += 2;
+  }
+}
+
+
+bool NarrowbandCore::recv(int socket, char *buf, size_t sz_buf, unsigned long timeout) {
+    char cmdbuf[128];
+    sprintf(cmdbuf, "AT+NSORF=%d,%d", socket, sz_buf);
+
+    char rspbuf[2048];
+    unsigned long l = ca.getTmeout();
+    ca.setTimeout(timeout);
+    size_t n2 = ca.send_cmd_recv_reply(cmdbuf, rspbuf, sizeof(rspbuf));
+    ca.setTimeout(l);
+
+    char *p[4];
+    int elems = _split_response_array(rspbuf, n2, p, 4);
+    for ( int i = 0; i < elems; i++) {
+        char *q[3];
+        int j = _split_csv_line(p[i], strlen(p[i]),q, 6);
+        if (j > 0) {
+            int rsocket = atoi(q[0]);
+            if ( rsocket == socket) {
+                // q[1] remote IP
+                // q[2] remote Port
+
+                int bytes = atoi(q[3]);
+
+                // hex-parse q[4]
+                hexstringToByteArr(q[4], strlen(q[4]), (uint8_t*)buf, sz_buf);
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+size_t NarrowbandCore::waitForMessageIndication(int socket, unsigned long timeout) {
+    char buf[128];
+    unsigned long l = ca.getTmeout();
+    ca.setTimeout(timeout);
+    size_t n = ca.send_cmd_recv_reply("", buf, sizeof(buf));
+    ca.setTimeout(l);
+    char *p[4];
+    int elems = _split_response_array(buf, n, p, 4);
+    // no ok, direkt nsonmi msg.
+    for ( int i = 0; i < elems; i++) {
+        char *q[3];
+        int j = _split_csv_line(p[i], strlen(p[i]),q, 3, "+NSONMI");
+        if (j > 0) {
+            int rsocket = atoi(q[0]);
+            int bytes = atoi(q[1]);
+            if ( rsocket == socket) {
+                return bytes;
+            }
+        }
+    }
+    return 0;
+}
+

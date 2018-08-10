@@ -36,15 +36,15 @@ public:
      */
     virtual size_t send_cmd_recv_reply_stop(const char *cmd, char *replybuffer, size_t sz_replybuffer, const char *stopWord) = 0;
    
-    void setTimeout(long timeout);
+    void setTimeout(unsigned long timeout);
 
-    long getTmeout() const;
+    unsigned long getTmeout() const;
 
 protected:
     void dbg_out(char prefix, const char *p, char flag = ' ');
     void dbg_out0(const char *p, bool nl = false);
 
-    long    timeout;
+    unsigned long    timeout;
 };
 
 #endif

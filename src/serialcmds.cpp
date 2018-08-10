@@ -18,9 +18,9 @@ bool ArduinoSerialCommandAdapter::send_cmd_waitfor_reply(const char *cmd, const 
     dbg_out('>', cmd);
 
     uint8_t idx = 0;
-    long timer = millis();
+    unsigned long timer = millis();
     bool b_reply_match = false;
-    char replybuffer[128]; 
+    char replybuffer[256]; 
     
     memset(replybuffer, 0, sizeof(replybuffer));
 
@@ -47,7 +47,7 @@ size_t ArduinoSerialCommandAdapter::send_cmd_recv_reply(const char *cmd, char *r
     dbg_out('>', cmd);
 
     uint8_t idx = 0;
-    long timer = millis();
+    unsigned long timer = millis();
     bool b_reply_match = false;
 
     while (!b_reply_match && millis() - timer < timeout && idx < sz_replybuffer) {
@@ -68,7 +68,7 @@ size_t ArduinoSerialCommandAdapter::send_cmd_recv_reply_stop(const char *cmd, ch
     dbg_out('>', cmd);
 
     uint8_t idx = 0;
-    long timer = millis();
+    unsigned long timer = millis();
     bool b_reply_match = false;
 
     while (!b_reply_match && millis() - timer < timeout && idx < sz_replybuffer) {

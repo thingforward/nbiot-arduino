@@ -1,54 +1,74 @@
+#ifndef UNIT_TEST
+
 #include <Arduino.h>
 #include "serialcmds.h"
 #include "narrowbandcore.h"
 
 
-void setup() {
-    delay(1500);
+// Select serial object for modem communication
+HardwareSerial& modem_serial = Serial1;
 
+void mydelay(int t) {
+    if ( t <= 1000) {
+        delay(t);
+        return;
+    }
+    int x = t/500;
+    int v = 0;
+    char sym[4] = { '-', '\\', '|', '/'};
+
+    for ( int i = 0; i < x; i++) {
+        Serial.print(sym[v]);
+
+        v = (v + 1 ) % sizeof(sym);
+        delay(500);
+        Serial.print('\b');
+    }
+}
+
+void setup() {
     Serial.begin(115200);
 
+    mydelay(5000);
 
     // TEKMODUL BC68-DEVKIT         9600,echo
-    Serial1.begin(9600);
+    modem_serial.begin(9600);
 
-    ArduinoSerialCommandAdapter ca(Serial1, 1000);
+    ArduinoSerialCommandAdapter ca(modem_serial, 1000);
 
     Serial.println("Initializing..");
     while(!ca.send_cmd_waitfor_reply("AT", "OK\r\n")) {
-        //ca.send_cmd("EASY+Mode");
-        delay(1000);
+        mydelay(1000);
     }
     Serial.println("Done.");
 
-
-
     NarrowbandCore nbc(ca);
+    nbc.reboot();
+
+    mydelay(15*1000);
+
     nbc.setEcho(false);
 
     Serial.println(nbc.getManufacturerIdentification());
     Serial.println(nbc.getModelIdentification());
     
     Serial.println(nbc.getIMEI());
-    if ( nbc.hasError()) {
-        Serial.println(nbc.getLastError());
-    }
+    Serial.println(nbc.getIMSI());
+
+    nbc.setModuleFunctionality(false);
+    //mydelay(1000);
+    nbc.setCDPServer("40.114.225.189");
+    //mydelay(1000);
+    nbc.setModuleFunctionality(true);
+    //mydelay(1000);
 
 
 /*
 
-    // enable if not yet so
-    bool b;
-    nbc.getModuleFunctionality(b);
-    if (!b) {
-        nbc.setModuleFunctionality(true);
-    }
-
     // auto mode, can only be set when CFUN=0
     //nbc.setOperatorSelection(OperatorSelectMode::Automatic);
 
-    delay(3000);
-*/
+    mydelay(3000);
     int m,f;
     String opName;
     if ( nbc.getOperatorSelection(m,f,opName)) {
@@ -66,7 +86,6 @@ void setup() {
             Serial.println("Operator selection: DISABLED.");
         }
     }
-
     PDPContext  ctx_1nce = { -1, "IP", "iot.1nce.net" };
     bool b_ctx_ok = false;
 
@@ -90,44 +109,23 @@ void setup() {
         Serial.println("Target context NOT present, please configure.");
 
     }
-
-/*
-    int counter = 0;
-
-    if ( nbc.setNetworkRegistration(1)) {
-        int mode, status = 0;
-        while( status == 0 && ++counter < 10) {
-            if ( nbc.getNetworkRegistration(mode, status)) {
-                char buf[64];
-                sprintf(buf, "mode=%d, status=%d", mode, status);
-                Serial.println(buf);
-            }
-            delay(2000);
-        }
-    }
-    if ( nbc.setConnectionStatus(true)) {
-        int urc; bool connected = false;
-        while ( !connected  && ++counter < 10) {
-            if ( nbc.getConnectionStatus(urc, connected)) {
-                char buf[64];
-                sprintf(buf, "URC_Enabled=%d, Connected=%d", urc, connected);
-                Serial.println(buf);
-            }
-            delay(2000);
-        }
-    }
 */
-/*
+
+    mydelay(1000);
+    nbc.setNetworkRegistration(1);
+    mydelay(1000);
+    nbc.setConnectionStatus(true);
+    mydelay(1000);
+
     if ( nbc.setAttachStatus(true)) {
         bool attached = false;
+        int counter = 0;
         while ( !attached && ++counter < 10) {
+            mydelay(3000);
             if ( nbc.getAttachStatus(attached)) {
-                Serial.println(attached?"ATTACH":"DETACH");
             }
         }
     }
-*/
-    delay(2000);
 
     int rssi,ber;
     if ( nbc.getSignalQuality(rssi,ber)) {
@@ -135,14 +133,39 @@ void setup() {
         sprintf(buf, "RSSI=%d, BIT Error rate=%d", rssi, ber);
         Serial.println(buf);
     }
+
+    mydelay(1000);
+
+    if ( nbc.ready()) {
+        int socket = nbc.createSocket(SocketType::Datagram, 17, 48762, true);
+        if ( socket >= 0) { 
+            mydelay(1000);
+
+            String s("FF871D6BBDC5F86B?hello world");
+
+            nbc.sendTo(socket, "40.114.225.189", 9876, s.length(), (const uint8_t*)s.c_str());
+           
+            int n = nbc.waitForMessageIndication(socket, 5000);
+            if ( n > 0) {
+                char buf[128];
+                memset(buf,0,sizeof(buf));
+                if ( nbc.recv(socket, buf, n, 5000)) {
+                    Serial.println(buf);
+                }
+            }
+            mydelay(1000);
+            nbc.closeSocket(socket);
+        }
+    }
 }
 
 
 
 void loop() {
 
-    if (Serial1.available()) {
-        int c = Serial1.read();
+
+    if (modem_serial.available()) {
+        int c = modem_serial.read();
         Serial.write(c);
     }
     
@@ -151,7 +174,9 @@ void loop() {
 
         // echo
         Serial.write(c);
-        Serial1.write(c);
+        modem_serial.write(c);
     }
 }
 
+
+#endif
