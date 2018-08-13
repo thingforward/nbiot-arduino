@@ -3,12 +3,13 @@
 
 #include <stddef.h>
 
+namespace Narrowband {
+
 /**
  * Abstract class `CommandAdapter`, used by upper layer classes to execute
  * commands, do i/o with underlying communication mechanisms (e.g. serial or spi)
  */
 class CommandAdapter {
-    friend class NarrowbandCore;
 
 public:
 
@@ -36,8 +37,10 @@ public:
      */
     virtual size_t send_cmd_recv_reply_stop(const char *cmd, char *replybuffer, size_t sz_replybuffer, const char *stopWord) = 0;
    
+    /** Sets the timeout [msec] */
     void setTimeout(unsigned long timeout);
 
+    /** Returns current timeout [msec] */
     unsigned long getTmeout() const;
 
 protected:
@@ -47,4 +50,6 @@ protected:
     unsigned long    timeout;
 };
 
+}
+ 
 #endif

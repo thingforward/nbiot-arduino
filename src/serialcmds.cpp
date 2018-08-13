@@ -1,5 +1,7 @@
 #include "serialcmds.h"
 
+namespace Narrowband {
+
 /**
  * Sends a command via modem_serial
  * Does not wait for a response nor capture the response
@@ -88,3 +90,4 @@ size_t ArduinoSerialCommandAdapter::send_cmd_recv_reply_stop(const char *cmd, ch
     return idx;
 }
 
+}

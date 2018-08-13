@@ -5,8 +5,12 @@
 
 #include "narrowbandcore.h"
 
+namespace Narrowband {
+
+
 class Narrowband : public NarrowbandCore {
-    Narrowband(CommandAdapter& ca_);
+public:
+    Narrowband(CommandAdapter& ca_, boolean b_reboot = false);
 
     /**
      * Enables module functionality
@@ -21,7 +25,7 @@ class Narrowband : public NarrowbandCore {
     /**
      * Checks if module is in attention and enabled
      */
-    bool operator!();
+    operator bool();
 
     /**
      * Attaches to the narrowband network, according to module/band setup. If timeout is > 0, this method
@@ -58,7 +62,8 @@ class Narrowband : public NarrowbandCore {
      * ICMP PING to a remote host
      */
     bool ping(const char *ip, const long timeout_msec = 5000);
-
 };
+
+}
 
 #endif

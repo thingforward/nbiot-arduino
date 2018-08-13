@@ -1,8 +1,9 @@
-#include <Arduino.h>
+
 
 #include "narrowbandcore.h"
 #include "serialcmds.h"
 
+namespace Narrowband {
 
 bool PDPContext::operator==(const PDPContext& other) const {
     return (
@@ -13,6 +14,17 @@ bool PDPContext::operator==(const PDPContext& other) const {
 
 NarrowbandCore::NarrowbandCore(CommandAdapter& ca_) : ca(ca_){
     clearLastStatus();
+}
+
+void NarrowbandCore::dbg_out1(const char *p, bool nl) {
+#ifdef NBIOT_DEBUG1
+    Serial.print("("); 
+    Serial.print(p); 
+    Serial.print(")"); 
+    if ( nl) {
+        Serial.println();
+    }
+#endif
 }
 
 void NarrowbandCore::clearLastStatus() {
@@ -53,7 +65,7 @@ int NarrowbandCore::_split_response_array(char *buf, size_t n, char *arr_res[], 
             *p2 = 0;
 
             if ( p2 != p1) {
-                ca.dbg_out0(p1);
+                dbg_out1(p1);
 
                 if (strcmp(p1, "OK") == 0) {
                     lastStatusOk = true;
@@ -74,9 +86,9 @@ int NarrowbandCore::_split_response_array(char *buf, size_t n, char *arr_res[], 
         p2++;
     }
     if (lastStatusError) {
-        ca.dbg_out0("!!", true);
+        dbg_out1("!!", true);
     } else {
-        ca.dbg_out0("<<",true);
+        dbg_out1("<<",true);
     }
     return j;
 }
@@ -193,8 +205,8 @@ String NarrowbandCore::getIMSI() {
     return String();
 }
 
-bool NarrowbandCore::getOperatorSelection(int& mode, int& format, String& operatorName) {
-    mode = -1; format = -1; operatorName = "";
+bool NarrowbandCore::getOperatorSelection(OperatorSelectMode& mode, int& format, char *buf_operatorName) {
+    mode = OperatorSelectMode::Unknown; format = -1; *buf_operatorName = '\0';
 
     const char *cmd = "AT+COPS?";
     char buf[256];
@@ -210,29 +222,39 @@ bool NarrowbandCore::getOperatorSelection(int& mode, int& format, String& operat
         // split line into comma-sep elements
         int n = _split_csv_line(p[i], strlen(p[i]), q, 3, "+COPS");
 
-        if ( n == 1) {
-            mode = atoi(q[0]);
-            return true;
+        if ( n >= 1) {
+            int _mode = atoi(q[0]);
+
+            switch(_mode) {
+                case 0: 
+                    mode = OperatorSelectMode::Automatic;
+                    break;
+                case 1: 
+                    mode = OperatorSelectMode::Manual;
+                    break;
+                case 2: 
+                    mode = OperatorSelectMode::Deregister;
+                    break;
+            }
         }
         if ( n == 3) {
-            mode = atoi(q[0]);
             format = atoi(q[1]);
-            operatorName = String(q[2]);
-            return true;
+            strcpy(buf_operatorName, q[2]);
         }
+        return (n>=1);
     }
     return false;
 }
 
-bool NarrowbandCore::setOperatorSelection(const OperatorSelectMode mode, String operatorName) {
+bool NarrowbandCore::setOperatorSelection(OperatorSelectMode mode, const char * operatorName) {
     char cmd[64];
-    sprintf(cmd, "AT+COPS=%d,2,%s", mode, operatorName.c_str());
+    sprintf(cmd, "AT+COPS=%d,2,%s", mode, operatorName);
     char buf[256];
     size_t n = ca.send_cmd_recv_reply(cmd, buf, sizeof(buf));
 
     char *p[4];
     int elems = _split_response_array(buf, n, p, 4);
-    bool ok = (lastStatusOk && !lastStatusError && elems >= 2);
+    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
     return ok;
 }
 
@@ -248,12 +270,12 @@ bool NarrowbandCore::getModuleFunctionality(bool& fullFunctionality) {
     ca.setTimeout(t);
 
     char *p[2];
-    int elems = _split_response_array(buf, n, p, 4);
+    int elems = _split_response_array(buf, n, p, 2);
     bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
-    if (ok && String(p[0]).equals(cmd)) {
-        String res = String(p[1]);
+    if (ok) {
+        String res = String(p[0]);
         if (res.startsWith("+CFUN:")) {
-            res = res.substring(7);
+            res = res.substring(6);
             fullFunctionality = (bool)res.toInt();
             return true;
         }
@@ -275,7 +297,7 @@ bool NarrowbandCore::setModuleFunctionality(const bool fullFunctionality) {
 
     char *p[4];
     int elems = _split_response_array(buf, n, p, 4);
-    bool ok = (lastStatusOk && !lastStatusError && elems >= 2);
+    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
     return ok;
 }
 
@@ -335,7 +357,7 @@ bool NarrowbandCore::setNetworkRegistration(const int status) {
     ca.setTimeout(t);
 
     char *p[4];
-    int elems = _split_response_array(buf, n, p, 4);
+    _split_response_array(buf, n, p, 4);
     bool ok = (lastStatusOk && !lastStatusError);
     return ok;
 }
@@ -385,7 +407,7 @@ bool NarrowbandCore::setConnectionStatus(const bool connected) {
     ca.setTimeout(t);
 
     char *p[4];
-    int elems = _split_response_array(buf, n, p, 4);
+    _split_response_array(buf, n, p, 4);
     bool ok = (lastStatusOk && !lastStatusError);
     return ok;
 }
@@ -426,7 +448,7 @@ bool NarrowbandCore::setAttachStatus(const bool attached) {
     ca.setTimeout(t);
 
     char *p[4];
-    int elems = _split_response_array(buf, n, p, 4);
+    _split_response_array(buf, n, p, 4);
     bool ok = (lastStatusOk && !lastStatusError);
     return ok;
 }
@@ -523,7 +545,7 @@ bool NarrowbandCore::setCDPServer(const String host, const int port) {
     size_t n = ca.send_cmd_recv_reply(cmd, buf, sizeof(buf));
 
     char *p[4];
-    int elems = _split_response_array(buf, n, p, 4);
+    _split_response_array(buf, n, p, 4);
     bool ok = (lastStatusOk && !lastStatusError);
     return ok;
 
@@ -596,7 +618,7 @@ bool NarrowbandCore::sendTo(int socket, const char *remoteAddr, int remotePort, 
 
     char *p[4];
     int elems = _split_response_array(buf, n2, p, 4);
-    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
+    return (lastStatusOk && !lastStatusError && elems >= 1);
 /*    return ok;
     if ( ok) {
         for ( int i = 0; i < elems; i++) {
@@ -622,6 +644,7 @@ uint8_t charToNum(char c) {
   if ( c >= 'A' && c <= 'F') {
    return 10+(uint8_t)(c-'A'); 
   }
+  return 0;
 }
 
 void hexstringToByteArr(const char *p, int n, uint8_t *res, int len) {
@@ -643,13 +666,13 @@ bool NarrowbandCore::recv(int socket, char *buf, size_t sz_buf, unsigned long ti
     char rspbuf[2048];
     unsigned long l = ca.getTmeout();
     ca.setTimeout(timeout);
-    size_t n2 = ca.send_cmd_recv_reply(cmdbuf, rspbuf, sizeof(rspbuf));
+    size_t n2 = ca.send_cmd_recv_reply_stop(cmdbuf, rspbuf, sizeof(rspbuf), "OK\r\n");
     ca.setTimeout(l);
 
     char *p[4];
     int elems = _split_response_array(rspbuf, n2, p, 4);
     for ( int i = 0; i < elems; i++) {
-        char *q[3];
+        char *q[6];
         int j = _split_csv_line(p[i], strlen(p[i]),q, 6);
         if (j > 0) {
             int rsocket = atoi(q[0]);
@@ -657,7 +680,7 @@ bool NarrowbandCore::recv(int socket, char *buf, size_t sz_buf, unsigned long ti
                 // q[1] remote IP
                 // q[2] remote Port
 
-                int bytes = atoi(q[3]);
+                //int bytes = atoi(q[3]);
 
                 // hex-parse q[4]
                 hexstringToByteArr(q[4], strlen(q[4]), (uint8_t*)buf, sz_buf);
@@ -692,3 +715,4 @@ size_t NarrowbandCore::waitForMessageIndication(int socket, unsigned long timeou
     return 0;
 }
 
+}
