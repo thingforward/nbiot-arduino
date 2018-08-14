@@ -248,7 +248,11 @@ bool NarrowbandCore::getOperatorSelection(OperatorSelectMode& mode, int& format,
 
 bool NarrowbandCore::setOperatorSelection(OperatorSelectMode mode, const char * operatorName) {
     char cmd[64];
-    sprintf(cmd, "AT+COPS=%d,2,%s", mode, operatorName);
+    if ( mode == OperatorSelectMode::Manual) {
+        sprintf(cmd, "AT+COPS=%d,2,%s", mode, operatorName);
+    } else {
+        sprintf(cmd, "AT+COPS=%d", mode);
+    }
     char buf[256];
     size_t n = ca.send_cmd_recv_reply(cmd, buf, sizeof(buf));
 
@@ -421,7 +425,7 @@ bool NarrowbandCore::getAttachStatus(bool& attached) {
 
     char *p[4];
     int elems = _split_response_array(buf, n, p, 4);
-    bool ok = (lastStatusOk && !lastStatusError && elems >= 2);
+    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
     if (ok) {
         for ( int i = 0; i < elems; i++) {
             String line = String(p[i]), part;
@@ -659,7 +663,7 @@ void hexstringToByteArr(const char *p, int n, uint8_t *res, int len) {
 }
 
 
-bool NarrowbandCore::recv(int socket, char *buf, size_t sz_buf, unsigned long timeout) {
+bool NarrowbandCore::recv(int socket, uint8_t *buf, size_t sz_buf, unsigned long timeout) {
     char cmdbuf[128];
     sprintf(cmdbuf, "AT+NSORF=%d,%d", socket, sz_buf);
 
@@ -683,7 +687,7 @@ bool NarrowbandCore::recv(int socket, char *buf, size_t sz_buf, unsigned long ti
                 //int bytes = atoi(q[3]);
 
                 // hex-parse q[4]
-                hexstringToByteArr(q[4], strlen(q[4]), (uint8_t*)buf, sz_buf);
+                hexstringToByteArr(q[4], strlen(q[4]), buf, sz_buf);
                 return true;
             }
         }
@@ -715,4 +719,26 @@ size_t NarrowbandCore::waitForMessageIndication(int socket, unsigned long timeou
     return 0;
 }
 
+int NarrowbandCore::waitForResponse(unsigned long timeout, void(*cb_modem_msg)(const char *p_msg_line, const void *ctx)) {
+    char buf[256];
+    unsigned long l = ca.getTmeout();
+    ca.setTimeout(timeout);
+    size_t n = ca.send_cmd_recv_reply("", buf, sizeof(buf));
+    ca.setTimeout(l);
+    char *p[4];
+    int elems = _split_response_array(buf, n, p, 4);
+    if ( cb_modem_msg != NULL) {
+        for ( int i = 0; i < elems; i++) {
+            cb_modem_msg(p[i], this);
+        }
+    }
+    return elems;
 }
+
+bool NarrowbandCore::ping(const char *ip, const long timeout_msec) {
+    return false;
+
+}
+
+}
+

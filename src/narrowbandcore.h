@@ -6,6 +6,9 @@
 
 namespace Narrowband {
 
+/**
+ * Operator Selection Mode
+ */
 enum class OperatorSelectMode : int {
     Unknown = -1,
     Automatic = 0,
@@ -13,11 +16,16 @@ enum class OperatorSelectMode : int {
     Deregister = 2
 };
 
+/** Socket Types */
 enum class SocketType : int {
     Datagram = 0,
     Raw = 1
 };
 
+/**
+ * A PDPContext defines a context id, type and
+ * APN string 
+ */
 struct PDPContext {
     int     cid;
     char    type[16];
@@ -26,11 +34,19 @@ struct PDPContext {
     bool operator==(const PDPContext& other) const;
 };
 
+/**
+ * NarrowbandCore communicates with a modem via a CommandAdapter instance
+ * (e.g. connected via Serial/UART) and transforms modem requests into 
+ * modem commands (e.g. query IMSI, open socket etc.).
+ * 
+ */
 class NarrowbandCore {
 public:
+    /** Constructs a NarrowbandCore object, ties it to
+     * given CommandAdapter */
     NarrowbandCore(CommandAdapter& ca_);
 
-    /** checks if module is ready (AT) */
+    /** checks if module is ready. */
     bool ready();
 
     /** reboots the module. Returns after reboot. */
@@ -39,74 +55,81 @@ public:
     /** turns echo on/off. Methods below require echo == false */
     void setEcho(bool b_echo = false);
 
-    /** Returns the Manufacturer Identification (AT+CGMI) */
+    /** Returns the Manufacturer Identification */
     String getManufacturerIdentification();
 
-    /** Returns Model Identification (AT+CGMM) */
+    /** Returns Model Identification */
     String getModelIdentification();
     
-    /** Returns the International Mobile Equipment Identity. (AT+CGSN) */
+    /** Returns the International Mobile Equipment Identity. */
     String getIMEI();
 
-    /** Returns the International Mobile Subscriber Identity. (AT+CIMI) */
+    /** Returns the International Mobile Subscriber Identity. */
     String getIMSI();
 
-    /** Retrieves the current operator selection (AT+COPS?) */
+    /** Retrieves the current operator selection */
     bool getOperatorSelection(OperatorSelectMode& mode, int& format, char *operatorName);
 
-    /** */
+    /** set the current operator selection mode. Mode can be Manual, Automatic or deregistering .
+     * In Manual mode, an `operatorName` has to be specified.
+     */
     bool setOperatorSelection(OperatorSelectMode mode, const char *operatorName);
 
-    /** */
+    /** Retrieves defined PDP contexts. Data is copied over into supplied array
+     * of given size. 
+     * Returns number of defined contexts.
+    */
     int getPDPContexts(PDPContext* arrContext, size_t sz_max_context);
 
-    /** */
+    /** Adds a PDP context. */
     bool addPDPContexts(PDPContext& ctx);
 
-    /** */
+    /** Retrieves the module functionality (true=full functionality)
+     * returns success of command
+     */
     bool getModuleFunctionality(bool& fullFunctionality);
 
-    /** */
+    /** Sets the module functionality */
     bool setModuleFunctionality(bool fullFunctionality);
 
-    /** */
+    /** Retrieves the current network registration settings */
     bool getNetworkRegistration(int& mode, int& status);
 
-    /** */
+    /** sets the network registration */
     bool setNetworkRegistration(const int status);
 
-    /** */
+    /** retrieves the current connection status */
     bool getConnectionStatus(int& urcEnabled, bool& connected);
 
-    /** */
+    /** sets the connection status */
     bool setConnectionStatus(const bool connected);
 
-    /** */
+    /** retrieves the current attachement status */
     bool getAttachStatus(bool& attached);
 
-    /** */
-    bool getSignalQuality(int& rssi, int& ber);
-
-    /** */
+    /** sets the attachment status */
     bool setAttachStatus(bool attached);
     
+    /** retrieves signal quality (RSSI, bit error rate) */
+    bool getSignalQuality(int& rssi, int& ber);
+
     /**
      * Sets the CDP server to host:port(coap)
      */
     bool setCDPServer(String host, int port = 5683);
 
     /** Creates a socket of given type, protocol, local port. Receive Control
-     * is disable by default. (AT+NSOCR)
+     * is disable by default. 
      */
     int createSocket( SocketType s, int protocol, int listenPort, bool bWithReceiveControl = false);
 
     /**
-     * Closes an open socket (AT+NSOCL)
+     * Closes an open socket 
      */
     bool closeSocket( int socket);
 
     /**
-     * Sends content to a remote UDP address:port combination, using an open socket. (AT+NSOST)
+     * Sends content to a remote UDP address:port combination, using an open socket. 
      */ 
     bool sendTo(int socket, const char *remoteAddr, int remotePort, size_t length, const uint8_t *p_data);
 
@@ -121,8 +144,18 @@ public:
      * Receives data from a socket after a message indication. Stores data
      * in buffer
      */
-    bool recv(int socket, char *buf, size_t sz_buf, unsigned long timeout);
+    bool recv(int socket, uint8_t *buf, size_t sz_buf, unsigned long timeout);
 
+    /**
+     * ICMP PING to a remote host
+     */
+    bool ping(const char *ip, const long timeout_msec = 5000);
+
+    /** 
+     * Reads and parses data from modem for given time indicated by `timeout`. If `cb_modem_msg` is 
+     * given, it is called for each line. 
+     */
+    int waitForResponse(unsigned long timeout, void(*cb_modem_msg)(const char *p_msg_line, const void *ctx) = NULL);
 
     /** returns true if last command returned an error status */
     bool hasError() { return lastStatusError; }
@@ -136,14 +169,15 @@ private:
     String  lastError;
     bool    lastStatusOk, lastStatusError;
 
+
+protected:
+    void dbg_out1(const char *p, bool nl = false);
+
     int _split_response_array(char *buf, size_t n, char *arr_res[], int n_max_arr);
 
     int _split_csv_line(char *buf, size_t n, char *arr_res[], int n_max_arr, const char *p_expect_cmdstring = NULL);
 
     void clearLastStatus();
-
-    void dbg_out1(const char *p, bool nl = false);
-
 };
 
 }

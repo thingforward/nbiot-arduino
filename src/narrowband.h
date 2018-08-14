@@ -7,7 +7,12 @@
 
 namespace Narrowband {
 
-
+/**
+ * Narrowband offers high level methods to interact with 
+ * a modem. Typical approach is to begin a session, attach
+ * to the network, send/receive data.
+ * It uses methods from Narrowband core
+ */
 class Narrowband : public NarrowbandCore {
 public:
     Narrowband(CommandAdapter& ca_, boolean b_reboot = false);
@@ -33,7 +38,7 @@ public:
      * If timeout_msec <= 0, attach calls are triggered but not waited for successful completion (asynchronous)
      * @return successful attachment (sychronous) or error-free triggering (asynchronous).
      */
-    bool attach(const long timeout_msec = 5000);
+    bool attach(long timeout_msec = 5000, long wait_time_msec = 500);
 
     /**
      * Checks for Registration, Connection and Attachment. Returns true, if all are valid, false otherwise.
@@ -43,12 +48,13 @@ public:
     /**
      * detatches from the nb network.
      */
-    bool detach();
+    bool detach(long timeout_msec = 5000);
 
     /**
      * Sends UDP packet
      */
     bool sendUDP( const char *ip, const int port, const uint8_t *p_data, const size_t sz_data);
+    bool sendUDP( const char *ip, const int port, String content);
 
     /**
      * Sends UDP packet and waits for reply
@@ -57,11 +63,19 @@ public:
         const uint8_t *p_data, const size_t sz_data,
         uint8_t *p_response_data, const size_t sz_response_data,
         const long timeout_msec = 5000);
+    bool sendReceiveUDP( const char *ip, const int port, 
+        String request, String& response,
+        const long timeout_msec = 5000);
 
     /**
-     * ICMP PING to a remote host
      */
-    bool ping(const char *ip, const long timeout_msec = 5000);
+    void notify_status(const char *l);
+
+private:
+    void cb_attach_messages(const char *p, const void *ctx);
+
+protected:
+    int lastnotified_cereg, lastnotified_cscon, lastnotified_cgatt;    
 };
 
 }

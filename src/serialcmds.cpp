@@ -45,8 +45,10 @@ bool ArduinoSerialCommandAdapter::send_cmd_waitfor_reply(const char *cmd, const 
  * in `replybuffer` of size `sz_replybuffer.
  */
 size_t ArduinoSerialCommandAdapter::send_cmd_recv_reply(const char *cmd, char *replybuffer, size_t sz_replybuffer) {
-    modem_serial.println(cmd);
-    dbg_out('>', cmd);
+    if(strlen(cmd) > 0) {
+        modem_serial.println(cmd);
+        dbg_out('>', cmd);
+    }
 
     uint8_t idx = 0;
     unsigned long timer = millis();
