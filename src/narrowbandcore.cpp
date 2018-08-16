@@ -2,6 +2,7 @@
 
 #include "narrowbandcore.h"
 #include "serialcmds.h"
+#include "nbutils.h"
 
 namespace Narrowband {
 
@@ -56,6 +57,9 @@ void NarrowbandCore::setEcho(bool b_echo) {
  * */
 int NarrowbandCore::_split_response_array(char *buf, size_t n, char *arr_res[], int n_max_arr) {
     clearLastStatus();
+    //int j = Narrowband::_split_response_array(buf,n,arr_res, n_max_arr, lastStatusOk, lastStatusError, lastError);
+
+    
     char *p1 = buf;
     char *p2 = buf;
     int i = 0;
@@ -85,6 +89,10 @@ int NarrowbandCore::_split_response_array(char *buf, size_t n, char *arr_res[], 
         i++;
         p2++;
     }
+    
+    /*for ( int i = 0; i < j; i++) {
+        dbg_out1(arr_res[i], false);
+    }*/
     if (lastStatusError) {
         dbg_out1("!!", true);
     } else {
@@ -97,6 +105,8 @@ int NarrowbandCore::_split_response_array(char *buf, size_t n, char *arr_res[], 
 // after that, *buf == command without ':', rest of pointers assigned
 // destroys buf
 int NarrowbandCore::_split_csv_line(char *buf, size_t n, char *arr_res[], int n_max_arr, const char *p_expect_cmdstring) {
+    return split_csv_line(buf,n, arr_res, n_max_arr, p_expect_cmdstring);
+/*
     if ( p_expect_cmdstring != NULL) {
         char *sep = strchr(buf,':');
         int i = 0, j = 0;
@@ -144,6 +154,7 @@ int NarrowbandCore::_split_csv_line(char *buf, size_t n, char *arr_res[], int n_
     }
 
     return 0;
+    */
 }
 
 
@@ -205,8 +216,8 @@ String NarrowbandCore::getIMSI() {
     return String();
 }
 
-bool NarrowbandCore::getOperatorSelection(OperatorSelectMode& mode, int& format, char *buf_operatorName) {
-    mode = OperatorSelectMode::Unknown; format = -1; *buf_operatorName = '\0';
+bool NarrowbandCore::getOperatorSelection(OperatorSelectMode& mode, int& format, String& buf_operatorName) {
+    mode = OperatorSelectMode::Unknown; format = -1; buf_operatorName = "";
 
     const char *cmd = "AT+COPS?";
     char buf[256];
@@ -239,7 +250,7 @@ bool NarrowbandCore::getOperatorSelection(OperatorSelectMode& mode, int& format,
         }
         if ( n == 3) {
             format = atoi(q[1]);
-            strcpy(buf_operatorName, q[2]);
+            buf_operatorName = String(q[2]);
         }
         return (n>=1);
     }
@@ -260,6 +271,29 @@ bool NarrowbandCore::setOperatorSelection(OperatorSelectMode mode, const char * 
     int elems = _split_response_array(buf, n, p, 4);
     bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
     return ok;
+}
+
+bool NarrowbandCore::getPDPAddress(String& pdpAddress) {
+    const char *cmd = "AT+CGPADDR";
+    char buf[256];
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r");
+
+    // split command lines..
+    char *p[4];
+    int elems = _split_response_array(buf, n, p, 4);
+    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
+    for ( int i = 0; ok && i < elems; i++) {
+        char *q[2];
+        // split line into comma-sep elements
+        int n = _split_csv_line(p[i], strlen(p[i]), q, 2, &cmd[2]);
+
+        if ( n == 1) {
+            pdpAddress = String(q[0]);
+            return true;
+        }
+    }
+    return false;
+
 }
 
 bool NarrowbandCore::getModuleFunctionality(bool& fullFunctionality) {
@@ -533,7 +567,7 @@ int NarrowbandCore::getPDPContexts(PDPContext *arrContext, size_t sz_max_context
 
 }
 
-bool NarrowbandCore::addPDPContexts(PDPContext& ctx) {
+bool NarrowbandCore::addPDPContexts(const PDPContext& ctx) {
     char cmdbuf[128];
     sprintf(cmdbuf, "AT+CGDCONT=%d,\"%s\",\"%s\"", ctx.cid, ctx.type, ctx.APN);
 
@@ -542,7 +576,7 @@ bool NarrowbandCore::addPDPContexts(PDPContext& ctx) {
     return (lastStatusOk && !lastStatusError);
 }
 
-bool NarrowbandCore::setCDPServer(const String host, const int port) {
+bool NarrowbandCore::setCDPServer(String host, const int port) {
     char cmd[64];
     sprintf(cmd, "AT+NCDP=%s,%d", host.c_str(), port);
     char buf[256];
@@ -719,17 +753,17 @@ size_t NarrowbandCore::waitForMessageIndication(int socket, unsigned long timeou
     return 0;
 }
 
-int NarrowbandCore::waitForResponse(unsigned long timeout, void(*cb_modem_msg)(const char *p_msg_line, const void *ctx)) {
+int NarrowbandCore::waitForResponse(unsigned long timeout, void(*cb_modem_msg)(const char *p_msg_line, const void *ctx), const void *context) {
     char buf[256];
     unsigned long l = ca.getTmeout();
     ca.setTimeout(timeout);
     size_t n = ca.send_cmd_recv_reply("", buf, sizeof(buf));
     ca.setTimeout(l);
-    char *p[4];
-    int elems = _split_response_array(buf, n, p, 4);
+    char *p[8];
+    int elems = _split_response_array(buf, n, p, 8);
     if ( cb_modem_msg != NULL) {
         for ( int i = 0; i < elems; i++) {
-            cb_modem_msg(p[i], this);
+            cb_modem_msg(p[i], context);
         }
     }
     return elems;

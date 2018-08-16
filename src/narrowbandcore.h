@@ -38,9 +38,9 @@ struct PDPContext {
  * NarrowbandCore communicates with a modem via a CommandAdapter instance
  * (e.g. connected via Serial/UART) and transforms modem requests into 
  * modem commands (e.g. query IMSI, open socket etc.).
- * 
  */
 class NarrowbandCore {
+    friend class Narrowband;
 public:
     /** Constructs a NarrowbandCore object, ties it to
      * given CommandAdapter */
@@ -68,7 +68,7 @@ public:
     String getIMSI();
 
     /** Retrieves the current operator selection */
-    bool getOperatorSelection(OperatorSelectMode& mode, int& format, char *operatorName);
+    bool getOperatorSelection(OperatorSelectMode& mode, int& format, String& operatorName);
 
     /** set the current operator selection mode. Mode can be Manual, Automatic or deregistering .
      * In Manual mode, an `operatorName` has to be specified.
@@ -82,7 +82,10 @@ public:
     int getPDPContexts(PDPContext* arrContext, size_t sz_max_context);
 
     /** Adds a PDP context. */
-    bool addPDPContexts(PDPContext& ctx);
+    bool addPDPContexts(const PDPContext& ctx);
+
+    /** Retrieves the PDP address */
+    bool getPDPAddress(String& pdpAddress);
 
     /** Retrieves the module functionality (true=full functionality)
      * returns success of command
@@ -155,7 +158,7 @@ public:
      * Reads and parses data from modem for given time indicated by `timeout`. If `cb_modem_msg` is 
      * given, it is called for each line. 
      */
-    int waitForResponse(unsigned long timeout, void(*cb_modem_msg)(const char *p_msg_line, const void *ctx) = NULL);
+    int waitForResponse(unsigned long timeout, void(*cb_modem_msg)(const char *p_msg_line, const void *ctx) = NULL, const void *context = NULL);
 
     /** returns true if last command returned an error status */
     bool hasError() { return lastStatusError; }

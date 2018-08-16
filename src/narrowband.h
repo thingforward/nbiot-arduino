@@ -11,11 +11,11 @@ namespace Narrowband {
  * Narrowband offers high level methods to interact with 
  * a modem. Typical approach is to begin a session, attach
  * to the network, send/receive data.
- * It uses methods from Narrowband core
+ * It uses methods from Narrowband core.
  */
-class Narrowband : public NarrowbandCore {
+class Narrowband {
 public:
-    Narrowband(CommandAdapter& ca_, boolean b_reboot = false);
+    Narrowband(NarrowbandCore& nb_, bool b_reboot = false);
 
     /**
      * Enables module functionality
@@ -71,11 +71,14 @@ public:
      */
     void notify_status(const char *l);
 
+    NarrowbandCore& getCore() const { return core_driver; };
+
 private:
     void cb_attach_messages(const char *p, const void *ctx);
 
 protected:
-    int lastnotified_cereg, lastnotified_cscon, lastnotified_cgatt;    
+    int lastnotified_cereg, lastnotified_cscon, lastnotified_cgatt; 
+    NarrowbandCore& core_driver;   
 };
 
 }
