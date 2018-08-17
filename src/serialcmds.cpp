@@ -2,6 +2,8 @@
 
 namespace Narrowband {
 
+#define DEBUG_WS    16
+
 /**
  * Sends a command via modem_serial
  * Does not wait for a response nor capture the response
@@ -19,23 +21,32 @@ bool ArduinoSerialCommandAdapter::send_cmd_waitfor_reply(const char *cmd, const 
     modem_serial.println(cmd);
     dbg_out('>', cmd);
 
-    uint8_t idx = 0;
+    uint8_t idx = 0, lidx = 0;
     unsigned long timer = millis();
     bool b_reply_match = false;
-    char replybuffer[256]; 
     
+    char replybuffer[256]; 
     memset(replybuffer, 0, sizeof(replybuffer));
 
-    while (!b_reply_match && millis() - timer < timeout && idx < sizeof(replybuffer)) {
+    while (!b_reply_match && (millis() - timer < timeout) && (idx < sizeof(replybuffer))) {
         if (modem_serial.available()) {
             int c = modem_serial.read();
+            if ( c <= 0) {
+                c = 255;
+            }
             replybuffer[idx++] = c;
 
-            b_reply_match = strstr(replybuffer, reply);
+            if ( idx % DEBUG_WS == 0) {
+                dbg_outs('<', (const char*)&replybuffer[lidx], DEBUG_WS, ((b_reply_match)?'!':' ') );
+                lidx = idx;
+            }
+        }
+        if ( strstr(replybuffer, reply) != nullptr) {
+            b_reply_match = true;
         }
     }
 
-    dbg_out('<', replybuffer, ((b_reply_match)?'!':' ') );
+    dbg_outs('<', (const char*)&replybuffer[lidx], (idx-lidx), ((b_reply_match)?'!':' ') );
 
     return b_reply_match;
 }
@@ -50,7 +61,7 @@ size_t ArduinoSerialCommandAdapter::send_cmd_recv_reply(const char *cmd, char *r
         dbg_out('>', cmd);
     }
 
-    uint8_t idx = 0;
+    uint8_t idx = 0, lidx = 0;
     unsigned long timer = millis();
     bool b_reply_match = false;
 
@@ -58,11 +69,17 @@ size_t ArduinoSerialCommandAdapter::send_cmd_recv_reply(const char *cmd, char *r
         if (modem_serial.available()) {
             int c = modem_serial.read();
             replybuffer[idx++] = c;
+
+            if ( idx % DEBUG_WS == 0) {
+                dbg_outs('<', (const char*)&replybuffer[lidx], DEBUG_WS, ' ' );
+                lidx = idx;
+            }
         }
     }
     replybuffer[idx] = '\0';
 
-    dbg_out('<', replybuffer, ' ');
+    dbg_outs('<', (const char*)&replybuffer[lidx], (idx-lidx), ' ' );
+//    dbg_out('<', replybuffer, ' ');
 
     return idx;
 }
@@ -71,7 +88,7 @@ size_t ArduinoSerialCommandAdapter::send_cmd_recv_reply_stop(const char *cmd, ch
     modem_serial.println(cmd);
     dbg_out('>', cmd);
 
-    uint8_t idx = 0;
+    uint8_t idx = 0, lidx = 0;
     unsigned long timer = millis();
     bool b_reply_match = false;
 
@@ -80,15 +97,20 @@ size_t ArduinoSerialCommandAdapter::send_cmd_recv_reply_stop(const char *cmd, ch
             int c = modem_serial.read();
             replybuffer[idx++] = c;
 
-            if ( strstr(replybuffer, stopWord) != NULL) {
-                replybuffer[idx] = '\0';
-                dbg_out('<', replybuffer, ' ');
-                return idx;
+            if ( idx % DEBUG_WS == 0) {
+                dbg_outs('<', (const char*)&replybuffer[lidx], DEBUG_WS, ((b_reply_match)?'!':' ') );
+                lidx = idx;
             }
+
+        }
+        if ( strstr(replybuffer, stopWord) != nullptr) {
+            replybuffer[idx] = '\0';
+            dbg_outs('<', (const char*)&replybuffer[lidx], (idx-lidx), ' ' );
+            return idx;
         }
     }
     replybuffer[idx] = '\0';
-    dbg_out('<', replybuffer, ' ');
+    dbg_outs('<', (const char*)&replybuffer[lidx], (idx-lidx), ' ' );
     return idx;
 }
 

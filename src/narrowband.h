@@ -38,7 +38,7 @@ public:
      * If timeout_msec <= 0, attach calls are triggered but not waited for successful completion (asynchronous)
      * @return successful attachment (sychronous) or error-free triggering (asynchronous).
      */
-    bool attach(long timeout_msec = 5000, long wait_time_msec = 500);
+    bool attach(unsigned long timeout_msec = 5000, unsigned long wait_time_msec = 2000);
 
     /**
      * Checks for Registration, Connection and Attachment. Returns true, if all are valid, false otherwise.
@@ -49,6 +49,12 @@ public:
      * detatches from the nb network.
      */
     bool detach(long timeout_msec = 5000);
+
+    /**
+     * Checks for current operator selection, switches if necessary.
+     * Module must be registered for automatic provider selection (!)
+     */
+    bool ensureOperatorSelected(String op);
 
     /**
      * Sends UDP packet

@@ -6,6 +6,12 @@
 
 namespace Narrowband {
 
+#define TIMING_DELAY_SET_COPS       3000
+#define TIMING_DELAY_SET_CEREG      3000
+#define TIMING_DELAY_SET_CSCON      3000
+#define TIMING_DELAY_SET_CGATT      3000
+#define TIMING_DELAY_SET_CFUN       3000
+
 bool PDPContext::operator==(const PDPContext& other) const {
     return (
         (strcmp(this->APN, other.APN) == 0) &&
@@ -158,12 +164,20 @@ int NarrowbandCore::_split_csv_line(char *buf, size_t n, char *arr_res[], int n_
 }
 
 
+String NarrowbandCore::getModuleInfo() {
+    const char *cmd = "ATI";
+    char buf[128];
+    ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
+
+    return String(buf);
+}
+
 String NarrowbandCore::getModelIdentification() {
     clearLastStatus();
 
     const char *cmd = "AT+CGMM";
     char buf[128];
-    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r");
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
 
     char *p[4];
     int elems = _split_response_array(buf, n, p, 4);
@@ -177,7 +191,7 @@ String NarrowbandCore::getModelIdentification() {
 String NarrowbandCore::getManufacturerIdentification() {
     const char *cmd = "AT+CGMI";
     char buf[128];
-    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r");
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
 
     char *p[4];
     int elems = _split_response_array(buf, n, p, 4);
@@ -191,7 +205,7 @@ String NarrowbandCore::getManufacturerIdentification() {
 String NarrowbandCore::getIMEI() {
     const char *cmd = "AT+CGSN";
     char buf[128];
-    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r");
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
 
     char *p[4];
     int elems = _split_response_array(buf, n, p, 4);
@@ -205,7 +219,7 @@ String NarrowbandCore::getIMEI() {
 String NarrowbandCore::getIMSI() {
     const char *cmd = "AT+CIMI";
     char buf[128];
-    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r");
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
 
     char *p[4];
     int elems = _split_response_array(buf, n, p, 4);
@@ -214,6 +228,14 @@ String NarrowbandCore::getIMSI() {
         return String(p[0]);
     }
     return String();
+}
+
+bool NarrowbandCore::setReportError(bool bEnable) {
+    char cmd[64];
+    sprintf(cmd,"AT+CMEE=%d", bEnable);
+    char buf[128];
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
+    return (lastStatusOk && !lastStatusError && n > 0);
 }
 
 bool NarrowbandCore::getOperatorSelection(OperatorSelectMode& mode, int& format, String& buf_operatorName) {
@@ -250,33 +272,51 @@ bool NarrowbandCore::getOperatorSelection(OperatorSelectMode& mode, int& format,
         }
         if ( n == 3) {
             format = atoi(q[1]);
-            buf_operatorName = String(q[2]);
+
+            // check for ""
+            char *x = q[2];
+            size_t l = strlen(x);
+            if (x[l-1] == '\"') {
+                x[l-1] = 0;
+            }
+            if (x[0] == '\"') {
+                *x = 0;
+                x++;
+            }
+            buf_operatorName = String(x);
         }
         return (n>=1);
     }
     return false;
 }
 
-bool NarrowbandCore::setOperatorSelection(OperatorSelectMode mode, const char * operatorName) {
+bool NarrowbandCore::setOperatorSelection(OperatorSelectMode mode, String operatorName) {
     char cmd[64];
     if ( mode == OperatorSelectMode::Manual) {
-        sprintf(cmd, "AT+COPS=%d,2,%s", mode, operatorName);
+        sprintf(cmd, "AT+COPS=%d,2,\"%s\"", mode, operatorName.c_str());
     } else {
         sprintf(cmd, "AT+COPS=%d", mode);
     }
     char buf[256];
     size_t n = ca.send_cmd_recv_reply(cmd, buf, sizeof(buf));
 
+    // TODO: make configurable
+    delay(TIMING_DELAY_SET_COPS);
+
+    return (lastStatusOk && !lastStatusError && n > 0);
+/*
     char *p[4];
     int elems = _split_response_array(buf, n, p, 4);
     bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
     return ok;
+    */
+
 }
 
 bool NarrowbandCore::getPDPAddress(String& pdpAddress) {
     const char *cmd = "AT+CGPADDR";
     char buf[256];
-    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r");
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
 
     // split command lines..
     char *p[4];
@@ -287,8 +327,8 @@ bool NarrowbandCore::getPDPAddress(String& pdpAddress) {
         // split line into comma-sep elements
         int n = _split_csv_line(p[i], strlen(p[i]), q, 2, &cmd[2]);
 
-        if ( n == 1) {
-            pdpAddress = String(q[0]);
+        if ( n == 2) {
+            pdpAddress = String(q[1]);
             return true;
         }
     }
@@ -303,7 +343,7 @@ bool NarrowbandCore::getModuleFunctionality(bool& fullFunctionality) {
     long t = ca.getTmeout();
     ca.setTimeout(5000);
 
-    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r");
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
 
     ca.setTimeout(t);
 
@@ -329,7 +369,9 @@ bool NarrowbandCore::setModuleFunctionality(const bool fullFunctionality) {
     long t = ca.getTmeout();
     ca.setTimeout(5000);
 
-    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r");
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
+
+    delay(TIMING_DELAY_SET_CFUN);
 
     ca.setTimeout(t);
 
@@ -344,7 +386,7 @@ bool NarrowbandCore::getNetworkRegistration(int& mode, int& status) {
 
     const char *cmd = "AT+CEREG?";
     char buf[256];
-    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r");
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
 
     char *p[4];
     int elems = _split_response_array(buf, n, p, 4);
@@ -390,9 +432,11 @@ bool NarrowbandCore::setNetworkRegistration(const int status) {
     long t = ca.getTmeout();
     ca.setTimeout(5000);
 
-    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r");
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
 
     ca.setTimeout(t);
+    
+    delay(TIMING_DELAY_SET_CEREG);
 
     char *p[4];
     _split_response_array(buf, n, p, 4);
@@ -405,7 +449,7 @@ bool NarrowbandCore::getConnectionStatus(int& urcEnabled, bool& connected) {
 
     const char *cmd = "AT+CSCON?";
     char buf[256];
-    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r");
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
 
     char *p[4];
     int elems = _split_response_array(buf, n, p, 4);
@@ -440,9 +484,11 @@ bool NarrowbandCore::setConnectionStatus(const bool connected) {
     long t = ca.getTmeout();
     ca.setTimeout(5000);
 
-    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r");
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
 
     ca.setTimeout(t);
+
+    delay(TIMING_DELAY_SET_CSCON);
 
     char *p[4];
     _split_response_array(buf, n, p, 4);
@@ -455,7 +501,9 @@ bool NarrowbandCore::getAttachStatus(bool& attached) {
 
     const char *cmd = "AT+CGATT?";
     char buf[256];
-    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r");
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
+
+    delay(TIMING_DELAY_SET_CGATT);
 
     char *p[4];
     int elems = _split_response_array(buf, n, p, 4);
@@ -481,7 +529,7 @@ bool NarrowbandCore::setAttachStatus(const bool attached) {
     long t = ca.getTmeout();
     ca.setTimeout(5000);
 
-    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r");
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
 
     ca.setTimeout(t);
 
@@ -496,7 +544,7 @@ bool NarrowbandCore::getSignalQuality(int& rssi, int& ber) {
 
     const char *cmd = "AT+CSQ";
     char buf[256];
-    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r");
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
 
     // split command lines..
     char *p[4];
@@ -519,7 +567,7 @@ bool NarrowbandCore::getSignalQuality(int& rssi, int& ber) {
 int NarrowbandCore::getPDPContexts(PDPContext *arrContext, size_t sz_max_context) {
     const char *cmd = "AT+CGDCONT?";
     char buf[1024];
-    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r");
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
     int j = 0;
 
     // split command lines..
@@ -572,7 +620,7 @@ bool NarrowbandCore::addPDPContexts(const PDPContext& ctx) {
     sprintf(cmdbuf, "AT+CGDCONT=%d,\"%s\",\"%s\"", ctx.cid, ctx.type, ctx.APN);
 
     char buf[128];
-    ca.send_cmd_recv_reply_stop(cmdbuf, buf, sizeof(buf), "OK\r");
+    ca.send_cmd_recv_reply_stop(cmdbuf, buf, sizeof(buf), "OK\r\n");
     return (lastStatusOk && !lastStatusError);
 }
 
@@ -631,7 +679,7 @@ bool NarrowbandCore::closeSocket( int socket) {
     sprintf(cmdbuf, "AT+NSOCL=%d", socket);
 
     char buf[128];
-    ca.send_cmd_recv_reply_stop(cmdbuf, buf, sizeof(buf), "OK\r");
+    ca.send_cmd_recv_reply_stop(cmdbuf, buf, sizeof(buf), "OK\r\n");
     return (lastStatusOk && !lastStatusError);
 
 }
@@ -650,7 +698,7 @@ bool NarrowbandCore::sendTo(int socket, const char *remoteAddr, int remotePort, 
     char cmdbuf[128];
     sprintf(cmdbuf, "AT+NSOST=%d,%s,%d,%d,%s", socket, remoteAddr, remotePort, length, hexbuf);
     char buf[256];
-    size_t n2 = ca.send_cmd_recv_reply_stop(cmdbuf, buf, sizeof(buf), "OK\r");
+    size_t n2 = ca.send_cmd_recv_reply_stop(cmdbuf, buf, sizeof(buf), "OK\r\n");
 
     free(hexbuf);
 

@@ -34,6 +34,69 @@ Narrowband::operator bool() {
     return enabled;
 }
 
+bool Narrowband::ensureOperatorSelected(String op) {
+    OperatorSelectMode  m;
+    int f;
+    String opq;
+
+    //
+    core_driver.setNetworkRegistration(1);
+    delay(5000);
+
+    // Start by querying the current mode
+    if (!core_driver.getOperatorSelection(m,f,opq)) {
+        return false;
+    }
+
+    // If we're deregistered, we directly set the operator selection manually,
+    // ask again and continue
+    if ( m == OperatorSelectMode::Deregister) {
+        //
+        if ( !core_driver.setOperatorSelection(OperatorSelectMode::Manual, op)) {
+            return false;
+        }
+        // ask again
+        if (!core_driver.getOperatorSelection(m,f,opq)) {
+            return false;
+        }
+
+        core_driver.setModuleFunctionality(false);
+        core_driver.setModuleFunctionality(true);
+    }
+
+    // Manual or Automatic, and operator is correct? Fine.
+    if ( (m == OperatorSelectMode::Manual || m == OperatorSelectMode::Automatic) && op == opq) {
+        return true;
+    }
+
+    // Wrong operator? The deregister and register again. Ask & check.
+    if ( (m == OperatorSelectMode::Manual || m == OperatorSelectMode::Automatic) && op != opq) {
+        // we need to switch AND deregister
+        if ( !core_driver.setOperatorSelection(OperatorSelectMode::Deregister, op)) {
+            return false;
+        }
+        if ( !core_driver.setOperatorSelection(OperatorSelectMode::Manual, op)) {
+            return false;
+        }
+
+        // ask again
+        if (!core_driver.getOperatorSelection(m,f,opq)) {
+            return false;
+        }
+
+        delay(10000);
+
+        if ( (m == OperatorSelectMode::Manual || m == OperatorSelectMode::Automatic) && op == opq) {
+            core_driver.setModuleFunctionality(false);
+            core_driver.setModuleFunctionality(true);
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void _cb_attach_messages(const char *p, const void *ctx) {
     if ( ctx != NULL) {
         Narrowband *x = (Narrowband*)ctx;
@@ -49,7 +112,7 @@ void Narrowband::notify_status(const char *l) {
     // the buffer afterwards.
     char buf[256];
     memset(buf,0,sizeof(buf));
-    int n = strlen(l);
+    size_t n = strlen(l);
     if ( n >= sizeof(buf)) {
         n = sizeof(buf)-1;
     }
@@ -78,12 +141,14 @@ void Narrowband::notify_status(const char *l) {
     }
 }
 
-bool Narrowband::attach( long timeout_msec, long wait_time_msec) {
+bool Narrowband::attach( unsigned long timeout_msec, unsigned long wait_time_msec) {
     delay(wait_time_msec);
-    core_driver.setNetworkRegistration(1);
-    delay(wait_time_msec);
-    core_driver.setConnectionStatus(true);
-    delay(wait_time_msec);
+    if ( !core_driver.setNetworkRegistration(1)) {
+        return false;
+    }
+    if ( !core_driver.setConnectionStatus(true)) {
+        return false;
+    }
 
     bool res = false;
     res = core_driver.setAttachStatus(true);
@@ -92,19 +157,17 @@ bool Narrowband::attach( long timeout_msec, long wait_time_msec) {
     }
 
     lastnotified_cereg = lastnotified_cscon = lastnotified_cgatt = 0;
-    int n = core_driver.waitForResponse(timeout_msec, _cb_attach_messages, this);
+    (void)core_driver.waitForResponse(timeout_msec, _cb_attach_messages, this);
 
     bool attached = false;
     if ( lastnotified_cereg > 0 && lastnotified_cscon > 0) {
-        Serial.println("A");
         unsigned long now = millis();
         while ( !attached && (millis()-now) < timeout_msec) {
             Serial.println(attached);
-            delay(wait_time_msec*3);
+            delay(wait_time_msec);
             core_driver.getAttachStatus((bool&)attached);
         }
     }
-    Serial.println("B");
 
     return attached;
 }
@@ -123,7 +186,7 @@ bool Narrowband::detach(long timeout_msec) {
         return res;
     }
 
-    int n = core_driver.waitForResponse(timeout_msec, _cb_attach_messages);
+    core_driver.waitForResponse(timeout_msec, _cb_attach_messages);
 
     bool attached = false;
     res = core_driver.getAttachStatus((bool&)attached);
@@ -139,7 +202,7 @@ bool Narrowband::sendUDP( const char *ip, const int port, const uint8_t *p_data,
     }
     bool b = core_driver.sendTo(socket, ip, port, sz_data, p_data);
     core_driver.closeSocket(socket);
-
+    return b;
 }
 
 bool Narrowband::sendUDP( const char *ip, const int port, String content) {

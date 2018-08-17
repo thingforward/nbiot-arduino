@@ -45,6 +45,7 @@ public:
 
 protected:
     void dbg_out(char prefix, const char *p, char flag = ' ');
+    void dbg_outs(char prefix, const char *p, size_t n, char flag = ' ');
     void dbg_out0(const char *p, bool nl = false);
 
     unsigned long    timeout;

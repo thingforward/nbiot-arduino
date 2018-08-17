@@ -55,6 +55,9 @@ public:
     /** turns echo on/off. Methods below require echo == false */
     void setEcho(bool b_echo = false);
 
+    /** Returns module info */
+    String getModuleInfo();
+
     /** Returns the Manufacturer Identification */
     String getManufacturerIdentification();
 
@@ -67,13 +70,16 @@ public:
     /** Returns the International Mobile Subscriber Identity. */
     String getIMSI();
 
+    /** Enables error reporting */
+    bool setReportError(bool bEnable);
+
     /** Retrieves the current operator selection */
     bool getOperatorSelection(OperatorSelectMode& mode, int& format, String& operatorName);
 
     /** set the current operator selection mode. Mode can be Manual, Automatic or deregistering .
      * In Manual mode, an `operatorName` has to be specified.
      */
-    bool setOperatorSelection(OperatorSelectMode mode, const char *operatorName);
+    bool setOperatorSelection(OperatorSelectMode mode, String operatorName);
 
     /** Retrieves defined PDP contexts. Data is copied over into supplied array
      * of given size. 
