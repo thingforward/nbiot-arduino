@@ -53,6 +53,7 @@ void test_nbcore_split_csv_line() {
 }
 
 void setup() {
+    delay(5000);
     UNITY_BEGIN();
 
 //    RUN_TEST(test_nbcore_ready);

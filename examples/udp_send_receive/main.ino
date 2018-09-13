@@ -31,8 +31,10 @@ void setup() {
     // Driver class
     Narrowband::NarrowbandCore nbc(ca);
 
-    // instantiate NB object. true==reboot module
-    Narrowband::Narrowband nb(nbc, true);
+    Narrowband::FunctionConfig cfg;
+
+    // instantiate NB object. 
+    Narrowband::Narrowband nb(nbc, cfg);
  
     // Quectel: wait at least 10 seconds
     delay(10*1000);

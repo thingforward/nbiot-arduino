@@ -6,16 +6,12 @@
 // Please look at the specs of your board and locate
 // the Serial object with a pin mapping compatible to
 // the shield you're using.
-HardwareSerial& modem_serial = Serial1;
-
+HardwareSerial& modem_serial = Serial1;      // Serial1
+#define DebugSerial     Serial
 
 void setup() {
     // connection speed to your terminal (e.g. via USB)
-    Serial.begin(115200);
-
-    Serial.print("Hit [ENTER] or wait 10s ");
-    Serial.setTimeout(10000);
-    Serial.readStringUntil('\n');
+    DebugSerial.begin(115200);
 
     // Begin modem serial communication with correct speed (check shield specs!)
     // TEKMODUL BC68-DEVKIT         9600,echo
@@ -29,14 +25,14 @@ void setup() {
     // Driver class
     Narrowband::NarrowbandCore nbc(ca);
 
-    Serial.print("Module Info: "); 
-    Serial.println(nbc.getModuleInfo());
+    DebugSerial.print("Module Info: "); 
+    DebugSerial.println(nbc.getModuleInfo());
 
-    Serial.print("IMEI: "); 
-    Serial.println(nbc.getIMEI());
+    DebugSerial.print("IMEI: "); 
+    DebugSerial.println(nbc.getIMEI());
 
-    Serial.print("IMSI: "); 
-    Serial.println(nbc.getIMSI());
+    DebugSerial.print("IMSI: "); 
+    DebugSerial.println(nbc.getIMSI());
 
 }
 

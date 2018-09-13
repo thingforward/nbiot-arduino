@@ -1,10 +1,12 @@
-#ifndef __SERIALCMDS_H
-#define __SERIALCMDS_H
+
+#pragma once
 
 #include <Arduino.h>
 #include "commandadapter.h"
 
 namespace Narrowband {
+
+class NarrowbandCore;
 
 #define SERIALCMDS_DEFAULT_TIMEOUT_MSEC 1000
 
@@ -29,8 +31,9 @@ public:
 
 private:
     Stream&   modem_serial;
+
+    void clear();
 };
 
 }
 
-#endif

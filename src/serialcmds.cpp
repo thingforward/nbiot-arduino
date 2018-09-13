@@ -114,4 +114,10 @@ size_t ArduinoSerialCommandAdapter::send_cmd_recv_reply_stop(const char *cmd, ch
     return idx;
 }
 
+void ArduinoSerialCommandAdapter::clear() {
+    while(modem_serial.available()){modem_serial.read();}
 }
+
+
+}
+

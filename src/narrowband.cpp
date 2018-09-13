@@ -1,11 +1,11 @@
-#include <narrowband.h>
 #include <Arduino.h>
+#include "narrowband.h"
+#include "narrowbandcore.h"
 
 namespace Narrowband {
 
-
-Narrowband::Narrowband(NarrowbandCore& nbc_, boolean b_reboot) : core_driver(nbc_) {
-    if (b_reboot) {
+Narrowband::Narrowband(NarrowbandCore& nbc_, FunctionConfig& config_) : core_driver(nbc_), config(config_) {
+    if (config.b_reboot_at_init) {
         core_driver.reboot();
     }
 }
@@ -15,8 +15,10 @@ void Narrowband::begin() {
         delay(1000);
     }
     core_driver.setEcho(false);
-    core_driver.setModuleFunctionality(false);
-    core_driver.setModuleFunctionality(true);
+    if (config.b_disable_enable_at_begin) {
+        core_driver.setModuleFunctionality(false);
+        core_driver.setModuleFunctionality(true);
+    }
 }
 
 void Narrowband::end() {
