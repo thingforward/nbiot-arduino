@@ -36,7 +36,7 @@ void CommandAdapter::dbg_outs(char prefix, const char *p, size_t n, char flag) {
     Serial.print("["); 
     Serial.print(prefix); 
     Serial.print(flag); 
-    int i = 0;
+    size_t i = 0;
     char const *x = p;
     while(i < n) {
         char buf[4];

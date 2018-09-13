@@ -4,6 +4,7 @@
 #include "serialcmds.h"
 #include "nbutils.h"
 
+
 namespace Narrowband {
 
 #define TIMING_DELAY_SET_COPS       3000
@@ -43,11 +44,15 @@ bool NarrowbandCore::ready() {
     return ca.send_cmd_waitfor_reply("AT", "OK\r\n");
 }
 
-void NarrowbandCore::reboot() {
-    long t = ca.getTmeout();
-    ca.setTimeout(20*1000);
-    ca.send_cmd_waitfor_reply("AT+NRB", "OK\r\n");
-    ca.setTimeout(t);
+void NarrowbandCore::reboot(int timeout_sec) {
+    if (timeout_sec <= 0) {
+        ca.send_cmd("AT+NRB");        
+    } else {
+        long t = ca.getTmeout();
+        ca.setTimeout(timeout_sec*1000);
+        ca.send_cmd_waitfor_reply("AT+NRB", "OK\r\n");
+        ca.setTimeout(t);
+    }
 }
 
 void NarrowbandCore::setEcho(bool b_echo) {
@@ -380,6 +385,92 @@ bool NarrowbandCore::setModuleFunctionality(const bool fullFunctionality) {
     bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
     return ok;
 }
+
+bool NarrowbandCore::getSupportedBands(int *piArrBand, size_t szArrBand, size_t& numSupportedBands) {
+    const char *cmd = "AT+NBAND=?";
+    char buf[256];
+
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
+
+    char *p[4];
+    int elems = _split_response_array(buf, n, p, 4);
+    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
+    if (ok) {
+        String res = String(p[0]);
+        if (res.startsWith("+NBAND:")) {
+            res = res.substring(7);
+            strcpy(buf,res.c_str());
+            int l = strlen(buf);
+            char *p_buf = buf;
+            if (buf[l-1] == ')') {
+                buf[l-1] = 0;
+            }
+            if (buf[0] == '(') {
+                buf[0] = 0;
+                p_buf++;
+            }
+            // split by , convert to int
+
+            char *q[20];
+            numSupportedBands = split_csv_line(p_buf, strlen(p_buf), q, 20);
+
+            for ( size_t i = 0; i < numSupportedBands && i < szArrBand; i++) {
+                piArrBand[i] = atoi(q[i]);
+            }
+
+            return true;
+        }
+    }
+    return false;
+}
+
+bool NarrowbandCore::getBands(int *piArrBand, size_t szArrBand, size_t& numSupportedBands) {
+    const char *cmd = "AT+NBAND?";
+    char buf[256];
+
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
+
+    char *p[4];
+    int elems = _split_response_array(buf, n, p, 4);
+    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
+    if (ok) {
+        String res = String(p[0]);
+        if (res.startsWith("+NBAND:")) {
+            res = res.substring(7);
+            strcpy(buf,res.c_str());
+            // split by , convert to int
+
+            char *q[20];
+            numSupportedBands = split_csv_line(buf, strlen(buf), q, 20);
+
+            for ( size_t i = 0; i < numSupportedBands && i < szArrBand; i++) {
+                piArrBand[i] = atoi(q[i]);
+            }
+
+            return true;
+        }
+    }
+    return false;
+}
+
+bool NarrowbandCore::setBands(int *piArrBand, size_t szArrBand) {
+    char cmdbuf[128];
+    int x = sprintf(cmdbuf, "AT+NBAND=");
+
+    char *p = cmdbuf+x;
+    for ( size_t i = 0; i < szArrBand; i++) {
+        x = sprintf(p, "%d,", piArrBand[i]);
+        p += x;
+    }
+    *(--p) = 0;
+
+    Serial.println(cmdbuf);
+
+    char buf[128];
+    ca.send_cmd_recv_reply_stop(cmdbuf, buf, sizeof(buf), "OK\r\n");
+    return (lastStatusOk && !lastStatusError);
+}
+
 
 bool NarrowbandCore::getNetworkRegistration(int& mode, int& status) {
     mode = -1; status = -1;

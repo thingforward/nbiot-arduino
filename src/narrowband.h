@@ -1,11 +1,22 @@
-#ifndef __NARROWBAND_H
-#define __NARROWBAND_H
+
+#pragma once
 
 #include <stdint.h>
 
-#include "narrowbandcore.h"
-
 namespace Narrowband {
+
+class NarrowbandCore;
+
+/**
+ * FunctionConfig captures flags and defaults for Narrowband class
+ */
+struct FunctionConfig {
+    // Reboot module at initialization
+    bool    b_reboot_at_init = false;
+
+    // in Narrowband.begin(), disable functionality and enable directly.
+    bool    b_disable_enable_at_begin = true;
+};
 
 /**
  * Narrowband offers high level methods to interact with 
@@ -15,7 +26,7 @@ namespace Narrowband {
  */
 class Narrowband {
 public:
-    Narrowband(NarrowbandCore& nb_, bool b_reboot = false);
+    Narrowband(NarrowbandCore& nb_, FunctionConfig& config_);
 
     /**
      * Enables module functionality
@@ -84,9 +95,8 @@ private:
 
 protected:
     int lastnotified_cereg, lastnotified_cscon, lastnotified_cgatt; 
-    NarrowbandCore& core_driver;   
+    NarrowbandCore& core_driver;
+    FunctionConfig& config;   
 };
 
 }
-
-#endif

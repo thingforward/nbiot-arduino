@@ -2,6 +2,8 @@
 
 #include <commandadapter.h>
 
+using namespace Narrowband;
+
 class MockCommandAdapter : public CommandAdapter {
 
 public:

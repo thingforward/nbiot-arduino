@@ -1,10 +1,12 @@
-#ifndef __NARROWBANDCORE_H
-#define __NARROWBANDCORE_H
+
+#pragma once
 
 #include <Arduino.h>
 #include "commandadapter.h"
 
 namespace Narrowband {
+
+class Narrowband;
 
 /**
  * Operator Selection Mode
@@ -50,7 +52,7 @@ public:
     bool ready();
 
     /** reboots the module. Returns after reboot. */
-    void reboot();
+    void reboot(int timeout_sec = 20);
 
     /** turns echo on/off. Methods below require echo == false */
     void setEcho(bool b_echo = false);
@@ -92,6 +94,15 @@ public:
 
     /** Retrieves the PDP address */
     bool getPDPAddress(String& pdpAddress);
+
+    /** Retrieves all bands supported by module */
+    bool getSupportedBands(int *piArrBand, size_t szArrBand, size_t& numSupportedBands);
+
+    /** Retrieves bands currently set */
+    bool getBands(int *piArrBand, size_t szArrBand, size_t& numSupportedBands);
+
+    /** sets the bands */
+    bool setBands(int *piArrBand, size_t szArrBand);
 
     /** Retrieves the module functionality (true=full functionality)
      * returns success of command
@@ -191,5 +202,3 @@ protected:
 
 }
 
-
-#endif

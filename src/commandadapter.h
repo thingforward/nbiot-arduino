@@ -1,5 +1,5 @@
-#ifndef __COMMANDADAPTER_H
-#define __COMMANDADAPTER_H
+
+#pragma once
 
 #include <stddef.h>
 
@@ -53,4 +53,3 @@ protected:
 
 }
  
-#endif
