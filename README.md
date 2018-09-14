@@ -21,4 +21,7 @@ Define `NBIOT_DEBUG0` to get serial debug output on byte-level. Define `NBIOT_DE
 
 # License
 
-(C)opyright 2018 Digital Incubation & Growth GmbH. All Rights Reserved.
+(C)opyright 2018 Digital Incubation & Growth GmbH, GPL.
+
+See LICENSE file for more details. This software is dual-licensed. For commercial licensing options, please contact info@thingforward.io
+

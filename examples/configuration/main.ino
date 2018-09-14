@@ -80,6 +80,21 @@ void setup() {
     }
     Serial.println();
 
+
+    // get configuration values
+    String key("AUTOCONNECT");
+    String v;
+    if ( nb.getCore().getConfigValue(key, v)) {
+        Serial.print(key); Serial.print( " is set to: ");
+        Serial.println(v);
+    } else {
+        Serial.print(key); Serial.print( " not found.");
+    }
+
+
+
+
+
     Serial.println("----- AT Command mode now ------");
 }
 
