@@ -1,8 +1,30 @@
+/*
+ *  Copyright (C) 2018  Digital Incubation & Growth GmbH
+ *
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation; either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License along
+ *   with this program; if not, write to the Free Software Foundation, Inc.,
+ *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. *
+ *
+ *  This software is dual-licensed. For commercial licensing options, please
+ *  contact the authors (see README).
+ */
 
+#include <Arduino.h>
 
 #include "narrowbandcore.h"
 #include "serialcmds.h"
 #include "nbutils.h"
+#include "nbdbg.h"
 
 
 namespace Narrowband {
@@ -22,17 +44,6 @@ bool PDPContext::operator==(const PDPContext& other) const {
 
 NarrowbandCore::NarrowbandCore(CommandAdapter& ca_) : ca(ca_){
     clearLastStatus();
-}
-
-void NarrowbandCore::dbg_out1(const char *p, bool nl) {
-#ifdef NBIOT_DEBUG1
-    Serial.print("("); 
-    Serial.print(p); 
-    Serial.print(")"); 
-    if ( nl) {
-        Serial.println();
-    }
-#endif
 }
 
 void NarrowbandCore::clearLastStatus() {
@@ -68,8 +79,6 @@ void NarrowbandCore::setEcho(bool b_echo) {
  * */
 int NarrowbandCore::_split_response_array(char *buf, size_t n, char *arr_res[], int n_max_arr) {
     clearLastStatus();
-    //int j = Narrowband::_split_response_array(buf,n,arr_res, n_max_arr, lastStatusOk, lastStatusError, lastError);
-
     
     char *p1 = buf;
     char *p2 = buf;
@@ -117,55 +126,6 @@ int NarrowbandCore::_split_response_array(char *buf, size_t n, char *arr_res[], 
 // destroys buf
 int NarrowbandCore::_split_csv_line(char *buf, size_t n, char *arr_res[], int n_max_arr, const char *p_expect_cmdstring) {
     return split_csv_line(buf,n, arr_res, n_max_arr, p_expect_cmdstring);
-/*
-    if ( p_expect_cmdstring != NULL) {
-        char *sep = strchr(buf,':');
-        int i = 0, j = 0;
-        char *p = 0;
-        if (buf[0] == '+' && sep != 0) {
-            *sep = '\0';
-            j = (sep-buf);
-            p = ++sep;
-
-            if ( strcmp(buf, p_expect_cmdstring) != 0) {
-                return -2;      // unexpected command
-            }
-
-            while (sep != 0 && i < n_max_arr && (size_t)j < n) {
-                arr_res[i++] = p;
-                sep = strchr(p,',');
-                if ( sep != 0) {
-                    *sep = '\0';
-                    j = (sep-buf);
-                    p = ++sep;
-                }
-            }
-
-            return i;
-        } else {
-            return -1;      // format invalid
-        }
-    } else {
-        char *sep = buf;
-        char *p = buf;
-        int i = 0, j = 0;
-        j = (sep-buf);
-
-        while (sep != 0 && i < n_max_arr && (size_t)j < n) {
-            arr_res[i++] = p;
-            sep = strchr(p,',');
-            if ( sep != 0) {
-                *sep = '\0';
-                j = (sep-buf);
-                p = ++sep;
-            }
-        }
-
-        return i;
-    }
-
-    return 0;
-    */
 }
 
 
@@ -463,8 +423,6 @@ bool NarrowbandCore::setBands(int *piArrBand, size_t szArrBand) {
         p += x;
     }
     *(--p) = 0;
-
-    Serial.println(cmdbuf);
 
     char buf[128];
     ca.send_cmd_recv_reply_stop(cmdbuf, buf, sizeof(buf), "OK\r\n");
@@ -913,5 +871,51 @@ bool NarrowbandCore::ping(const char *ip, const long timeout_msec) {
 
 }
 
+bool NarrowbandCore::getConfigValue(String key, String& value) {
+    // nconfig can be larger, allocate buffer
+    const size_t bufsize = 1024;
+    char *buf = (char*)malloc(bufsize);
+    memset(buf,0,bufsize);
+
+    unsigned long l = ca.getTmeout();
+    ca.setTimeout(5000);
+    size_t n = ca.send_cmd_recv_reply_stop("AT+NCONFIG?", buf, bufsize, "OK\r\n");
+    ca.setTimeout(l);
+
+    bool b_found = false;
+
+    const size_t n_return_elems = 12;
+    char *p[n_return_elems];
+    int elems = _split_response_array(buf, n, p, n_return_elems);
+    for ( int i = 0; i < elems; i++) {
+        char *q[3];
+        int j = _split_csv_line(p[i], strlen(p[i]),q, 3, "+NCONFIG");
+        if (j >= 2) {
+            if ( strcmp(key.c_str(), q[0]) == 0) {
+                value = String(q[1]);
+                b_found = true;
+            }
+        }
+    }
+
+    free(buf);
+
+    return b_found;
 }
 
+bool NarrowbandCore::setConfigValue(String key, String value) {
+    char cmd[64];
+    sprintf(cmd, "AT+NCONFIG=%s,%s", key.c_str(), value.c_str());
+    char buf[256];
+
+    size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
+
+    char *p[4];
+    _split_response_array(buf, n, p, 4);
+    bool ok = (lastStatusOk && !lastStatusError);
+    return ok;
+}
+
+
+
+}

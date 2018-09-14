@@ -1,4 +1,27 @@
+/*
+ *  Copyright (C) 2018  Digital Incubation & Growth GmbH
+ *
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation; either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License along
+ *   with this program; if not, write to the Free Software Foundation, Inc.,
+ *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. *
+ *
+ *  This software is dual-licensed. For commercial licensing options, please
+ *  contact the authors (see README).
+ */
+
 #include "serialcmds.h"
+#include "nbdbg.h"
+#include <Arduino.h>
 
 namespace Narrowband {
 
@@ -9,46 +32,80 @@ namespace Narrowband {
  * Does not wait for a response nor capture the response
  */
 void ArduinoSerialCommandAdapter::send_cmd(const char *cmd) {
-    modem_serial.println(cmd);
     dbg_out('>', cmd);
+    clear();
+    modem_serial.println(cmd);
 }
 
 /**
  * Sends `cmd` to `modem_serial`. Waits for up to `timeout` msecs for a response
  * If response contains `reply`, returns true, false otherwise.
+ * Max buffer size if 256 here!
  */
 bool ArduinoSerialCommandAdapter::send_cmd_waitfor_reply(const char *cmd, const char *reply) {
-    modem_serial.println(cmd);
-    dbg_out('>', cmd);
+    if ( cmd == NULL || reply == NULL) {
+        return 0;
+    }
+    uint8_t idx = 0;
+    int stopWordLen = strlen(reply);
 
-    uint8_t idx = 0, lidx = 0;
+    const int sz_replybuffer = 256;
+    char replybuffer[sz_replybuffer];
+    char *pw = replybuffer;
+    char *pd = replybuffer;
     unsigned long timer = millis();
-    bool b_reply_match = false;
-    
-    char replybuffer[256]; 
-    memset(replybuffer, 0, sizeof(replybuffer));
+    unsigned long t0 = timer;
 
-    while (!b_reply_match && (millis() - timer < timeout) && (idx < sizeof(replybuffer))) {
-        if (modem_serial.available()) {
-            int c = modem_serial.read();
-            if ( c <= 0) {
-                c = 255;
-            }
-            replybuffer[idx++] = c;
+    // clear out reply buffer
+    memset(replybuffer, 0, sz_replybuffer);
 
-            if ( idx % DEBUG_WS == 0) {
-                dbg_outs('<', (const char*)&replybuffer[lidx], DEBUG_WS, ((b_reply_match)?'!':' ') );
-                lidx = idx;
-            }
-        }
-        if ( strstr(replybuffer, reply) != nullptr) {
-            b_reply_match = true;
-        }
+    clear();
+    if(strlen(cmd) > 0) {
+        dbg_out('>', cmd);
+        modem_serial.println(cmd);
     }
 
-    dbg_outs('<', (const char*)&replybuffer[lidx], (idx-lidx), ((b_reply_match)?'!':' ') );
+    // while we're below timeout, and did not reach end of output buffer ...
+    while ( timer-t0 < timeout && idx < sz_replybuffer) {
+        // read what's there...
+        int av = modem_serial.available();
+        if (av > 0) {
+            for ( int i = 0; i < av; i++) {
+                int c = modem_serial.read();
+                if ( c >= 0) {
+                    *pw = c;
 
-    return b_reply_match;
+                    idx++; pw++;
+
+                    // check for stop word. return if found, debug.
+                    if ( idx >= stopWordLen) {
+                        char *ps = pw-stopWordLen;
+
+                        if (memcmp(ps, reply, stopWordLen) == 0) {
+                            dbg_outs('>', (const char*)pd, (pw-pd), '!' );
+                            return true;
+                        }
+                    }
+
+#if !defined(ARDUINO_ARCH_AVR)
+                    // debug every 16 bytes read UNLESS we're on AVR (not fast enough,
+                    // will miss out bytes when read from a software serial)
+                    if ( idx % DEBUG_WS == 0) {
+                        dbg_outs('<', (const char*)pd, DEBUG_WS, ' ' );
+                        pd += DEBUG_WS;
+                    }
+#endif
+                }
+            }
+        }
+
+        timer = millis();
+    }
+    // debug the rest..
+    dbg_outs('>', (const char*)pd, (pw-pd), ' ' );
+
+    return false;
+
 }
 
 /**
@@ -56,61 +113,115 @@ bool ArduinoSerialCommandAdapter::send_cmd_waitfor_reply(const char *cmd, const 
  * in `replybuffer` of size `sz_replybuffer.
  */
 size_t ArduinoSerialCommandAdapter::send_cmd_recv_reply(const char *cmd, char *replybuffer, size_t sz_replybuffer) {
+    if ( cmd == NULL || replybuffer == NULL || sz_replybuffer <= 0) {
+        return 0;
+    }
+    uint8_t idx = 0;
+
+    char *pw = replybuffer;
+    char *pd = replybuffer;
+    unsigned long timer = millis();
+    unsigned long t0 = timer;
+
+    // clear out reply buffer
+    memset(replybuffer, 0, sz_replybuffer);
+
+    clear();
     if(strlen(cmd) > 0) {
-        modem_serial.println(cmd);
         dbg_out('>', cmd);
+        modem_serial.println(cmd);
     }
 
-    uint8_t idx = 0, lidx = 0;
-    unsigned long timer = millis();
-    bool b_reply_match = false;
+    // while we're below timeout, and did not reach end of output buffer ...
+    while ( timer-t0 < timeout && idx < sz_replybuffer) {
+        // read what's there...
+        int av = modem_serial.available();
+        if (av > 0) {
+            for ( int i = 0; i < av; i++) {
+                int c = modem_serial.read();
+                if ( c >= 0) {
+                    *pw = c;
 
-    while (!b_reply_match && millis() - timer < timeout && idx < sz_replybuffer) {
-        if (modem_serial.available()) {
-            int c = modem_serial.read();
-            replybuffer[idx++] = c;
+                    idx++; pw++;
 
-            if ( idx % DEBUG_WS == 0) {
-                dbg_outs('<', (const char*)&replybuffer[lidx], DEBUG_WS, ' ' );
-                lidx = idx;
+#if !defined(ARDUINO_ARCH_AVR)
+                    // debug every 16 bytes read UNLESS we're on AVR (not fast enough,
+                    // will miss out bytes when read from a software serial)
+                    if ( idx % DEBUG_WS == 0) {
+                        dbg_outs('<', (const char*)pd, DEBUG_WS, ' ' );
+                        pd += DEBUG_WS;
+                    }
+#endif
+                }
             }
         }
-    }
-    replybuffer[idx] = '\0';
 
-    dbg_outs('<', (const char*)&replybuffer[lidx], (idx-lidx), ' ' );
-//    dbg_out('<', replybuffer, ' ');
+        timer = millis();
+    }
+    // debug the rest..
+    dbg_outs('>', (const char*)pd, (pw-pd), ' ' );
 
     return idx;
 }
 
 size_t ArduinoSerialCommandAdapter::send_cmd_recv_reply_stop(const char *cmd, char *replybuffer, size_t sz_replybuffer, const char *stopWord) {
-    modem_serial.println(cmd);
-    dbg_out('>', cmd);
-
-    uint8_t idx = 0, lidx = 0;
-    unsigned long timer = millis();
-    bool b_reply_match = false;
-
-    while (!b_reply_match && millis() - timer < timeout && idx < sz_replybuffer) {
-        if (modem_serial.available()) {
-            int c = modem_serial.read();
-            replybuffer[idx++] = c;
-
-            if ( idx % DEBUG_WS == 0) {
-                dbg_outs('<', (const char*)&replybuffer[lidx], DEBUG_WS, ((b_reply_match)?'!':' ') );
-                lidx = idx;
-            }
-
-        }
-        if ( strstr(replybuffer, stopWord) != nullptr) {
-            replybuffer[idx] = '\0';
-            dbg_outs('<', (const char*)&replybuffer[lidx], (idx-lidx), ' ' );
-            return idx;
-        }
+    if ( cmd == NULL || replybuffer == NULL || sz_replybuffer <= 0 || stopWord == NULL) {
+        return 0;
     }
-    replybuffer[idx] = '\0';
-    dbg_outs('<', (const char*)&replybuffer[lidx], (idx-lidx), ' ' );
+    size_t stopWordLen = strlen(stopWord);
+    size_t idx = 0;
+
+    char *pw = replybuffer;
+    char *pd = replybuffer;
+    unsigned long timer = millis();
+    unsigned long t0 = timer;
+
+    // clear out reply buffer
+    memset(replybuffer, 0, sz_replybuffer);
+
+    clear();
+    dbg_out('>', cmd);
+    modem_serial.println(cmd);
+
+    // while we're below timeout, and did not reach end of output buffer ...
+    while ( timer-t0 < timeout && idx < sz_replybuffer) {
+        // read what's there...
+        int av = modem_serial.available();
+        if (av > 0) {
+            for ( int i = 0; i < av; i++) {
+                int c = modem_serial.read();
+                if ( c >= 0) {
+                    *pw = c;
+
+                    idx++; pw++;
+
+                    // check for stop word. return if found, debug.
+                    if ( idx >= stopWordLen) {
+                        char *ps = pw-stopWordLen;
+
+                        if (memcmp(ps, stopWord, stopWordLen) == 0) {
+                            dbg_outs('>', (const char*)pd, (pw-pd), '!' );
+                            return idx;
+                        }
+                    }
+
+#if !defined(ARDUINO_ARCH_AVR)
+                    // debug every 16 bytes read UNLESS we're on AVR (not fast enough,
+                    // will miss out bytes when read from a software serial)
+                    if ( idx % DEBUG_WS == 0) {
+                        dbg_outs('<', (const char*)pd, DEBUG_WS, ' ' );
+                        pd += DEBUG_WS;
+                    }
+#endif
+                }
+            }
+        }
+
+        timer = millis();
+    }
+    // debug the rest..
+    dbg_outs('>', (const char*)pd, (pw-pd), ' ' );
+
     return idx;
 }
 
