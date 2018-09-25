@@ -423,7 +423,7 @@ bool NarrowbandCore::setBands(int *piArrBand, size_t szArrBand) {
 
     char *r[4];
     int elems = _split_response_array(buf, n, r, 4);
-    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
+    return (lastStatusOk && !lastStatusError && elems >= 1);
 }
 
 
@@ -796,7 +796,7 @@ bool NarrowbandCore::recv(unsigned int socket, uint8_t *buf, size_t sz_buf, unsi
         char *q[6];
         int j = _split_csv_line(p[i], strlen(p[i]),q, 6);
         if (j > 0) {
-            int rsocket = atoi(q[0]);
+            unsigned int rsocket = atoi(q[0]);
             if ( rsocket == socket) {
                 // q[1] remote IP
                 // q[2] remote Port

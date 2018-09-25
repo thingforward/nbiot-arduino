@@ -83,9 +83,14 @@ public:
 
     /**
      * Checks for current operator selection, switches if necessary.
-     * Module must be registered for automatic provider selection (!)
+     * Module must be registered for automatic provider selection.
      */
     bool ensureOperatorSelected(String op);
+
+    /**
+     * Checks for current operator selection, switches to automatic if necessary.
+     */
+    bool ensureAutomaticOperatorSelection(void);
 
     /**
      * Sends UDP packet

@@ -57,6 +57,17 @@ Narrowband::operator bool() {
     return enabled;
 }
 
+bool Narrowband::ensureAutomaticOperatorSelection(void) {
+    OperatorSelectMode m; int f; String op;
+    if ( core_driver.getOperatorSelection(m,f,op)) {
+        if (m != OperatorSelectMode::Automatic) {
+            return core_driver.setOperatorSelection(OperatorSelectMode::Automatic, "");
+            delay(10*1000);
+        }
+    }
+    return false;
+}
+
 bool Narrowband::ensureOperatorSelected(String op) {
     OperatorSelectMode  m;
     int f;
@@ -272,7 +283,7 @@ bool Narrowband::sendReceiveUDP( const char *ip, const int port,
 
 bool Narrowband::sendReceiveUDP( const char *ip, const int port, 
     String request, String& response,
-    const size_t sz_receive_bufsize = 128,
+    const size_t sz_receive_bufsize,
     const long timeout_msec) {
 
     uint8_t *buf = (uint8_t*)calloc(1,sz_receive_bufsize);
