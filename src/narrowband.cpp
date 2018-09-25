@@ -186,9 +186,21 @@ bool Narrowband::attach( unsigned long timeout_msec, unsigned long wait_time_mse
     if ( lastnotified_cereg > 0 && lastnotified_cscon > 0) {
         unsigned long now = millis();
         while ( !attached && (millis()-now) < timeout_msec) {
-            Serial.println(attached);
             delay(wait_time_msec);
             core_driver.getAttachStatus((bool&)attached);
+        }
+    } else {
+        // we did not receive unsolicited responses from modem. 
+        // Ask sequentially
+        int reg_mode = 0, reg_status = 0;
+        if (core_driver.getNetworkRegistration(reg_mode, reg_status)) {
+            if (reg_mode == 1 && reg_status == 5) {
+                unsigned long now = millis();
+                while ( !attached && (millis()-now) < timeout_msec) {
+                    delay(wait_time_msec);
+                    core_driver.getAttachStatus((bool&)attached);
+                }
+            }
         }
     }
 
@@ -237,7 +249,8 @@ bool Narrowband::sendReceiveUDP( const char *ip, const int port,
     uint8_t *p_response_data, const size_t sz_response_data,
     const long timeout_msec) {
 
-    int lport = random(32768,65535);
+    
+    unsigned int lport = random(32768,65535);
     int socket = core_driver.createSocket(SocketType::Datagram, 17, lport, true);
     if ( socket <= 0) {
         return false;
@@ -259,15 +272,16 @@ bool Narrowband::sendReceiveUDP( const char *ip, const int port,
 
 bool Narrowband::sendReceiveUDP( const char *ip, const int port, 
     String request, String& response,
+    const size_t sz_receive_bufsize = 128,
     const long timeout_msec) {
 
-    uint8_t buf[2048];
-    memset(buf,0,sizeof(buf));
+    uint8_t *buf = (uint8_t*)calloc(1,sz_receive_bufsize);
 
-    bool b = this->sendReceiveUDP(ip,port,(const uint8_t*)request.c_str(), request.length(), buf, sizeof(buf), timeout_msec);
+    bool b = this->sendReceiveUDP(ip,port,(const uint8_t*)request.c_str(), request.length(), buf, sz_receive_bufsize, timeout_msec);
     if (b) {
         response.concat((const char *)buf);
     }
+    free(buf);
     return b;
 }
 

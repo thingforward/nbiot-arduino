@@ -59,7 +59,7 @@ void NarrowbandCore::reboot(int timeout_sec) {
     if (timeout_sec <= 0) {
         ca.send_cmd("AT+NRB");        
     } else {
-        long t = ca.getTmeout();
+        long t = ca.getTimeout();
         ca.setTimeout(timeout_sec*1000);
         ca.send_cmd_waitfor_reply("AT+NRB", "OK\r\n");
         ca.setTimeout(t);
@@ -110,9 +110,6 @@ int NarrowbandCore::_split_response_array(char *buf, size_t n, char *arr_res[], 
         p2++;
     }
     
-    /*for ( int i = 0; i < j; i++) {
-        dbg_out1(arr_res[i], false);
-    }*/
     if (lastStatusError) {
         dbg_out1("!!", true);
     } else {
@@ -200,6 +197,9 @@ bool NarrowbandCore::setReportError(bool bEnable) {
     sprintf(cmd,"AT+CMEE=%d", bEnable);
     char buf[128];
     size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
+
+    // TODO parse
+
     return (lastStatusOk && !lastStatusError && n > 0);
 }
 
@@ -268,14 +268,9 @@ bool NarrowbandCore::setOperatorSelection(OperatorSelectMode mode, String operat
     // TODO: make configurable
     delay(TIMING_DELAY_SET_COPS);
 
-    return (lastStatusOk && !lastStatusError && n > 0);
-/*
     char *p[4];
     int elems = _split_response_array(buf, n, p, 4);
-    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
-    return ok;
-    */
-
+    return (lastStatusOk && !lastStatusError && elems >= 1);
 }
 
 bool NarrowbandCore::getPDPAddress(String& pdpAddress) {
@@ -305,7 +300,7 @@ bool NarrowbandCore::getModuleFunctionality(bool& fullFunctionality) {
     const char *cmd = "AT+CFUN?";
     char buf[256];
 
-    long t = ca.getTmeout();
+    long t = ca.getTimeout();
     ca.setTimeout(5000);
 
     size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
@@ -331,7 +326,7 @@ bool NarrowbandCore::setModuleFunctionality(const bool fullFunctionality) {
     sprintf(cmd, "AT+CFUN=%d", fullFunctionality?1:0);
     char buf[256];
 
-    long t = ca.getTmeout();
+    long t = ca.getTimeout();
     ca.setTimeout(5000);
 
     size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
@@ -342,8 +337,7 @@ bool NarrowbandCore::setModuleFunctionality(const bool fullFunctionality) {
 
     char *p[4];
     int elems = _split_response_array(buf, n, p, 4);
-    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
-    return ok;
+    return (lastStatusOk && !lastStatusError && elems >= 1);
 }
 
 bool NarrowbandCore::getSupportedBands(int *piArrBand, size_t szArrBand, size_t& numSupportedBands) {
@@ -425,8 +419,11 @@ bool NarrowbandCore::setBands(int *piArrBand, size_t szArrBand) {
     *(--p) = 0;
 
     char buf[128];
-    ca.send_cmd_recv_reply_stop(cmdbuf, buf, sizeof(buf), "OK\r\n");
-    return (lastStatusOk && !lastStatusError);
+    size_t n = ca.send_cmd_recv_reply_stop(cmdbuf, buf, sizeof(buf), "OK\r\n");
+
+    char *r[4];
+    int elems = _split_response_array(buf, n, r, 4);
+    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
 }
 
 
@@ -478,7 +475,7 @@ bool NarrowbandCore::setNetworkRegistration(const int status) {
     sprintf(cmd, "AT+CEREG=%d", status);
     char buf[256];
 
-    long t = ca.getTmeout();
+    long t = ca.getTimeout();
     ca.setTimeout(5000);
 
     size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
@@ -489,8 +486,7 @@ bool NarrowbandCore::setNetworkRegistration(const int status) {
 
     char *p[4];
     _split_response_array(buf, n, p, 4);
-    bool ok = (lastStatusOk && !lastStatusError);
-    return ok;
+    return (lastStatusOk && !lastStatusError);
 }
 
 bool NarrowbandCore::getConnectionStatus(int& urcEnabled, bool& connected) {
@@ -530,7 +526,7 @@ bool NarrowbandCore::setConnectionStatus(const bool connected) {
     sprintf(cmd, "AT+CSCON=%d", connected?1:0);
     char buf[256];
 
-    long t = ca.getTmeout();
+    long t = ca.getTimeout();
     ca.setTimeout(5000);
 
     size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
@@ -541,8 +537,7 @@ bool NarrowbandCore::setConnectionStatus(const bool connected) {
 
     char *p[4];
     _split_response_array(buf, n, p, 4);
-    bool ok = (lastStatusOk && !lastStatusError);
-    return ok;
+    return (lastStatusOk && !lastStatusError);
 }
 
 bool NarrowbandCore::getAttachStatus(bool& attached) {
@@ -575,7 +570,7 @@ bool NarrowbandCore::setAttachStatus(const bool attached) {
     sprintf(cmd, "AT+CGATT=%d", attached?1:0);
     char buf[256];
 
-    long t = ca.getTmeout();
+    long t = ca.getTimeout();
     ca.setTimeout(5000);
 
     size_t n = ca.send_cmd_recv_reply_stop(cmd, buf, sizeof(buf), "OK\r\n");
@@ -584,8 +579,7 @@ bool NarrowbandCore::setAttachStatus(const bool attached) {
 
     char *p[4];
     _split_response_array(buf, n, p, 4);
-    bool ok = (lastStatusOk && !lastStatusError);
-    return ok;
+    return (lastStatusOk && !lastStatusError);
 }
 
 bool NarrowbandCore::getSignalQuality(int& rssi, int& ber) {
@@ -670,6 +664,9 @@ bool NarrowbandCore::addPDPContexts(const PDPContext& ctx) {
 
     char buf[128];
     ca.send_cmd_recv_reply_stop(cmdbuf, buf, sizeof(buf), "OK\r\n");
+
+    // TODO parse
+
     return (lastStatusOk && !lastStatusError);
 }
 
@@ -681,12 +678,11 @@ bool NarrowbandCore::setCDPServer(String host, const int port) {
 
     char *p[4];
     _split_response_array(buf, n, p, 4);
-    bool ok = (lastStatusOk && !lastStatusError);
-    return ok;
+    return (lastStatusOk && !lastStatusError);
 
 }
 
-int NarrowbandCore::createSocket( SocketType s, int protocol, int listenPort, bool bWithReceiveControl) {
+int NarrowbandCore::createSocket( SocketType s, int protocol, unsigned int listenPort, bool bWithReceiveControl) {
     char tbuf[16];
     memset(tbuf,0,sizeof(tbuf));
     if ( s == SocketType::Datagram) {
@@ -703,7 +699,7 @@ int NarrowbandCore::createSocket( SocketType s, int protocol, int listenPort, bo
     }
 
     char cmdbuf[128];
-    sprintf(cmdbuf, "AT+NSOCR=%s,%d,%d%s", tbuf,protocol,listenPort,rc);
+    sprintf(cmdbuf, "AT+NSOCR=%s,%d,%u%s", tbuf,protocol,listenPort,rc);
     char buf[256];
     size_t n = ca.send_cmd_recv_reply(cmdbuf, buf, sizeof(buf));
 
@@ -729,6 +725,9 @@ bool NarrowbandCore::closeSocket( int socket) {
 
     char buf[128];
     ca.send_cmd_recv_reply_stop(cmdbuf, buf, sizeof(buf), "OK\r\n");
+
+    // TODO parse
+
     return (lastStatusOk && !lastStatusError);
 
 }
@@ -754,19 +753,6 @@ bool NarrowbandCore::sendTo(int socket, const char *remoteAddr, int remotePort, 
     char *p[4];
     int elems = _split_response_array(buf, n2, p, 4);
     return (lastStatusOk && !lastStatusError && elems >= 1);
-/*    return ok;
-    if ( ok) {
-        for ( int i = 0; i < elems; i++) {
-            char *line = p[i];
-            if (line && *line >= '0' && *line <= '9') {
-                return atoi(line);
-            }
-        }
-        return -2;          // no socket id recognized
-    } else {
-        return -1;          // did not return with OK
-    }
-*/
 }
 
 uint8_t charToNum(char c) {
@@ -794,12 +780,12 @@ void hexstringToByteArr(const char *p, int n, uint8_t *res, int len) {
 }
 
 
-bool NarrowbandCore::recv(int socket, uint8_t *buf, size_t sz_buf, unsigned long timeout) {
+bool NarrowbandCore::recv(unsigned int socket, uint8_t *buf, size_t sz_buf, unsigned long timeout) {
     char cmdbuf[128];
-    sprintf(cmdbuf, "AT+NSORF=%d,%d", socket, sz_buf);
+    sprintf(cmdbuf, "AT+NSORF=%u,%d", socket, sz_buf);
 
     char rspbuf[2048];
-    unsigned long l = ca.getTmeout();
+    unsigned long l = ca.getTimeout();
     ca.setTimeout(timeout);
     size_t n2 = ca.send_cmd_recv_reply_stop(cmdbuf, rspbuf, sizeof(rspbuf), "OK\r\n");
     ca.setTimeout(l);
@@ -815,8 +801,6 @@ bool NarrowbandCore::recv(int socket, uint8_t *buf, size_t sz_buf, unsigned long
                 // q[1] remote IP
                 // q[2] remote Port
 
-                //int bytes = atoi(q[3]);
-
                 // hex-parse q[4]
                 hexstringToByteArr(q[4], strlen(q[4]), buf, sz_buf);
                 return true;
@@ -829,7 +813,7 @@ bool NarrowbandCore::recv(int socket, uint8_t *buf, size_t sz_buf, unsigned long
 
 size_t NarrowbandCore::waitForMessageIndication(int socket, unsigned long timeout) {
     char buf[128];
-    unsigned long l = ca.getTmeout();
+    unsigned long l = ca.getTimeout();
     ca.setTimeout(timeout);
     size_t n = ca.send_cmd_recv_reply("", buf, sizeof(buf));
     ca.setTimeout(l);
@@ -852,7 +836,7 @@ size_t NarrowbandCore::waitForMessageIndication(int socket, unsigned long timeou
 
 int NarrowbandCore::waitForResponse(unsigned long timeout, void(*cb_modem_msg)(const char *p_msg_line, const void *ctx), const void *context) {
     char buf[256];
-    unsigned long l = ca.getTmeout();
+    unsigned long l = ca.getTimeout();
     ca.setTimeout(timeout);
     size_t n = ca.send_cmd_recv_reply("", buf, sizeof(buf));
     ca.setTimeout(l);
@@ -877,7 +861,7 @@ bool NarrowbandCore::getConfigValue(String key, String& value) {
     char *buf = (char*)malloc(bufsize);
     memset(buf,0,bufsize);
 
-    unsigned long l = ca.getTmeout();
+    unsigned long l = ca.getTimeout();
     ca.setTimeout(5000);
     size_t n = ca.send_cmd_recv_reply_stop("AT+NCONFIG?", buf, bufsize, "OK\r\n");
     ca.setTimeout(l);

@@ -59,7 +59,6 @@ bool ArduinoSerialCommandAdapter::send_cmd_waitfor_reply(const char *cmd, const 
     // clear out reply buffer
     memset(replybuffer, 0, sz_replybuffer);
 
-    clear();
     if(strlen(cmd) > 0) {
         dbg_out('>', cmd);
         modem_serial.println(cmd);
@@ -126,7 +125,6 @@ size_t ArduinoSerialCommandAdapter::send_cmd_recv_reply(const char *cmd, char *r
     // clear out reply buffer
     memset(replybuffer, 0, sz_replybuffer);
 
-    clear();
     if(strlen(cmd) > 0) {
         dbg_out('>', cmd);
         modem_serial.println(cmd);
@@ -179,7 +177,6 @@ size_t ArduinoSerialCommandAdapter::send_cmd_recv_reply_stop(const char *cmd, ch
     // clear out reply buffer
     memset(replybuffer, 0, sz_replybuffer);
 
-    clear();
     dbg_out('>', cmd);
     modem_serial.println(cmd);
 

@@ -102,6 +102,7 @@ public:
         const long timeout_msec = 5000);
     bool sendReceiveUDP( const char *ip, const int port, 
         String request, String& response,
+        const size_t sz_receive_bufsize = 128,
         const long timeout_msec = 5000);
 
     /**
