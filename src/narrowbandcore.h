@@ -30,7 +30,7 @@ namespace Narrowband {
 class Narrowband;
 
 /**
- * Operator Selection Mode
+ * \brief Operator Selection Mode
  */
 enum class OperatorSelectMode : int {
     Unknown = -1,
@@ -58,9 +58,13 @@ struct PDPContext {
 };
 
 /**
+ * \class NarrowbandCore
+ * \brief Executes basic AT commands, using a CommandAdapter to communicate with the modem.
+ * \sa CommandAdapter
  * NarrowbandCore communicates with a modem via a CommandAdapter instance
  * (e.g. connected via Serial/UART) and transforms modem requests into 
- * modem commands (e.g. query IMSI, open socket etc.).
+ * modem commands (e.g. query IMSI, open socket etc.). Most commands
+ * return booleans to indicate if the command has suceeded or not. 
  */
 class NarrowbandCore {
     friend class Narrowband;
@@ -96,7 +100,14 @@ public:
     /** Enables error reporting */
     bool setReportError(bool bEnable);
 
-    /** Retrieves the current operator selection */
+    /** 
+     * \brief Retrieves the current operator selection (mode, format and operator name) 
+     * \param mode ref to OperatorSelectMode
+     * \param form ref to integer holding format value
+     * \param operatorName ref to String, receicing the operator name
+     * \return true, if successful.
+     * \sa setOperatorSelection
+     */
     bool getOperatorSelection(OperatorSelectMode& mode, int& format, String& operatorName);
 
     /** set the current operator selection mode. Mode can be Manual, Automatic or deregistering .
@@ -107,7 +118,7 @@ public:
     /** Retrieves defined PDP contexts. Data is copied over into supplied array
      * of given size. 
      * Returns number of defined contexts.
-    */
+     */
     int getPDPContexts(PDPContext* arrContext, size_t sz_max_context);
 
     /** Adds a PDP context. */
@@ -122,7 +133,7 @@ public:
     /** Retrieves bands currently set */
     bool getBands(int *piArrBand, size_t szArrBand, size_t& numSupportedBands);
 
-    /** sets the bands */
+    /** sets the bands. Takes a pointer to an array of bands, and the size of it */
     bool setBands(int *piArrBand, size_t szArrBand);
 
     /** Retrieves the module functionality (true=full functionality)
@@ -168,7 +179,7 @@ public:
     /** Creates a socket of given type, protocol, local port. Receive Control
      * is disable by default. 
      */
-    int createSocket( SocketType s, int protocol, int listenPort, bool bWithReceiveControl = false);
+    int createSocket( SocketType s, int protocol, unsigned int listenPort, bool bWithReceiveControl = false);
 
     /**
      * Closes an open socket 
@@ -191,7 +202,7 @@ public:
      * Receives data from a socket after a message indication. Stores data
      * in buffer
      */
-    bool recv(int socket, uint8_t *buf, size_t sz_buf, unsigned long timeout);
+    bool recv(unsigned int socket, uint8_t *buf, size_t sz_buf, unsigned long timeout);
 
     /**
      * ICMP PING to a remote host

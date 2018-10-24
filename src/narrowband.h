@@ -83,9 +83,14 @@ public:
 
     /**
      * Checks for current operator selection, switches if necessary.
-     * Module must be registered for automatic provider selection (!)
+     * Module must be registered for automatic provider selection.
      */
     bool ensureOperatorSelected(String op);
+
+    /**
+     * Checks for current operator selection, switches to automatic if necessary.
+     */
+    bool ensureAutomaticOperatorSelection(void);
 
     /**
      * Sends UDP packet
@@ -102,6 +107,7 @@ public:
         const long timeout_msec = 5000);
     bool sendReceiveUDP( const char *ip, const int port, 
         String request, String& response,
+        const size_t sz_receive_bufsize = 128,
         const long timeout_msec = 5000);
 
     /**

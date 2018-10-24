@@ -49,6 +49,7 @@ void setup() {
     }
 
     nb.getCore().setReportError(true);
+    nb.ensureAutomaticOperatorSelection();
 
     // try to attach within 15 secs
     if (nb.attach(15000)) {

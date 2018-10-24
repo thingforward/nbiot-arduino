@@ -61,7 +61,7 @@ public:
     void setTimeout(unsigned long timeout);
 
     /** Returns current timeout [msec] */
-    unsigned long getTmeout() const;
+    unsigned long getTimeout() const;
 
 protected:
     unsigned long    timeout;
@@ -73,7 +73,7 @@ inline void CommandAdapter::setTimeout(unsigned long timeout) {
     }
 }
 
-inline unsigned long CommandAdapter::getTmeout() const {
+inline unsigned long CommandAdapter::getTimeout() const {
     return timeout;
 }
 
