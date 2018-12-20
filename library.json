@@ -1,0 +1,28 @@
+{
+  "name": "nbiot-arduino",
+  "version": "0.8",
+  "license": "GNU General Public License 2.0 / Dual-Licensed",
+  "keywords": "arduino, nbiot, narrowband, narrowband-iot, lte, quectel, BC68, BC95",
+  "description": "Arduino Library for accessing Narrowband IoT modules from Quectel (BC68, BC95)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thingforward/nbiot-arduino.git"
+  },
+  "frameworks": "arduino",
+  "platforms": "*",
+  "authors": {
+    "name": "ThingForward.io c/o Digital Incubation and Growth GmbH",
+    "email": "info@thingforward.io",
+    "url": "www.thingforward.io"
+  },
+  "examples": [
+    "examples/configuration/main.ino",
+    "examples/module_info/main.ino",
+    "examples/udp_send_receive/main.ino"
+  ],
+  "export": {
+    "exclude": [
+      "test/*"
+    ]
+  }
+}
