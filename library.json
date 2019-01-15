@@ -1,7 +1,7 @@
 {
   "name": "nbiot-arduino",
   "version": "0.8",
-  "license": "GNU General Public License 2.0 / Dual-Licensed",
+  "license": "GNU General Public License 3.0 / Dual-Licensed",
   "keywords": "arduino, nbiot, narrowband, narrowband-iot, lte, quectel, BC68, BC95",
   "description": "Arduino Library for accessing Narrowband IoT modules from Quectel (BC68, BC95)",
   "repository": {
