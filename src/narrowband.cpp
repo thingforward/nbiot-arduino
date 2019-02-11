@@ -203,11 +203,14 @@ bool Narrowband::attach( unsigned long timeout_msec, unsigned long wait_time_mse
         // we did not receive unsolicited responses from modem. 
         // Ask sequentially
         int reg_mode = 0, reg_status = 0;
+        bool connected = false;
+        int urcEnabled = -1;
         if (core_driver.getNetworkRegistration(reg_mode, reg_status)) {
             if (reg_mode == 1 && reg_status == 5) {
                 unsigned long now = millis();
-                while ( !attached && (millis()-now) < timeout_msec) {
+                while ( !attached && !connected && (millis()-now) < timeout_msec) {
                     delay(wait_time_msec);
+                    core_driver.getConnectionStatus(urcEnabled, connected);
                     core_driver.getAttachStatus((bool&)attached);
                 }
             }

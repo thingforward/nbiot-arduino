@@ -33,3 +33,5 @@
 
 .pioenvs
 .vscode
+
+src/main.ino

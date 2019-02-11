@@ -51,6 +51,8 @@ void setup() {
     Narrowband::NarrowbandCore nbc(ca);
 
     Narrowband::FunctionConfig cfg;
+    cfg.b_disable_enable_at_begin = false;
+    cfg.b_reboot_at_init = false;
 
     // instantiate NB object. 
     Narrowband::Narrowband nb(nbc, cfg);
@@ -68,11 +70,11 @@ void setup() {
     }
 
     nb.getCore().setReportError(true);
-    nb.ensureAutomaticOperatorSelection();
 
     // try to attach within 15 secs
     if (nb.attach(15000)) {
         Serial.println("Attached.");
+        delay(10*1000);
 
         String ip;
         if (nb.getCore().getPDPAddress(ip)) {
