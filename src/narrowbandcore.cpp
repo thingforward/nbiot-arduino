@@ -257,9 +257,9 @@ bool NarrowbandCore::getOperatorSelection(OperatorSelectMode& mode, int& format,
 bool NarrowbandCore::setOperatorSelection(OperatorSelectMode mode, String operatorName) {
     char cmd[64];
     if ( mode == OperatorSelectMode::Manual) {
-        sprintf(cmd, "AT+COPS=%d,2,\"%s\"", mode, operatorName.c_str());
+        sprintf(cmd, "AT+COPS=%d,2,\"%s\"", (unsigned int)mode, operatorName.c_str());
     } else {
-        sprintf(cmd, "AT+COPS=%d", mode);
+        sprintf(cmd, "AT+COPS=%d", (unsigned int)mode);
     }
     char buf[256];
     size_t n = ca.send_cmd_recv_reply(cmd, buf, sizeof(buf));
@@ -850,8 +850,31 @@ int NarrowbandCore::waitForResponse(unsigned long timeout, void(*cb_modem_msg)(c
 }
 
 bool NarrowbandCore::ping(const char *ip, const long timeout_msec) {
-    return false;
+    char cmdbuf[128];
+    sprintf(cmdbuf, "AT+NPING=%s", ip);
 
+    char buf[256];
+    unsigned long l = ca.getTimeout();
+    ca.setTimeout(timeout_msec);
+    size_t n = ca.send_cmd_recv_reply(cmdbuf, buf, sizeof(buf));
+    ca.setTimeout(l);
+
+    char *p[4];
+    int elems = _split_response_array(buf, n, p, 4);
+    bool ok = (lastStatusOk && !lastStatusError && elems >= 1);
+    if (ok) {
+        for ( int i = 0; i < elems; i++) {
+            String line = String(p[i]);
+            Serial.println(line);
+            if (line.startsWith("+NPINGERR:")) {
+                return false;
+            }
+            if (line.startsWith("+NPING:")) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 bool NarrowbandCore::getConfigValue(String key, String& value) {
