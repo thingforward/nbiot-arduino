@@ -42,8 +42,6 @@ void setup() {
     // TEKMODUL BC68-DEVKIT         9600,echo
     modem_serial.begin(9600);
 
-    delay(3000);
-
     // Instantiate command adapter as the connection via serial
     Narrowband::ArduinoSerialCommandAdapter ca(modem_serial);
 
@@ -51,14 +49,12 @@ void setup() {
     Narrowband::NarrowbandCore nbc(ca);
 
     Narrowband::FunctionConfig cfg;
-    cfg.b_disable_enable_at_begin = false;
+    cfg.b_disable_enable_at_begin = true;
     cfg.b_reboot_at_init = false;
 
     // instantiate NB object. 
     Narrowband::Narrowband nb(nbc, cfg);
  
-    delay(2*1000);
-
     // begin session
     nb.begin();
     if (!nb) {
@@ -68,23 +64,22 @@ void setup() {
         Serial.println("NB module Initialized.");
     }
 
-    nb.getCore().setReportError(true);
-
-    // try to attach within 15 secs
-    if (nb.attach(15000)) {
+    if (nb.attach(10000, 500)) {
         Serial.println("Attached.");
-        delay(10*1000);
+        delay(5*1000);
 
         String ip;
         if (nb.getCore().getPDPAddress(ip)) {
             Serial.println(ip);
         }
 
-        // request something. Put in your IP address and 
-        // request data.
-        String req("RequestBodyDataGoesHere"), resp;
-        if ( nb.sendReceiveUDP("10.64.72.161", 9876,req,resp)) {
-            Serial.println(resp);
+        char ping_host[] = "8.8.8.8";
+        Serial.print("ICMP ping to: ");
+        Serial.println(ping_host);
+        if ( nb.getCore().ping(ping_host, 15000)) {
+            Serial.print("Succcessful.");
+        } else {
+            Serial.print("Not succcessful.");
         }
 
         nb.detach();
@@ -98,4 +93,7 @@ void setup() {
 
 void loop() {
 }
+
+
+
 
